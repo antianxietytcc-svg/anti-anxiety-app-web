@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,17 +12,36 @@ import { Cloud, Heart } from "lucide-react-native";
 import { GradientBackground } from "../src/components/GradientBackground";
 import { ModalMensagem } from "../src/components/ModalMensagem";
 import { COLORS } from "../src/constants/theme";
+import { LayoutContext } from "../src/contexts/LayoutContext";
+
+// Credenciais de demo — sem backend
+const DEMO_USER = {
+  email: "tucano@circuitodourado.com",
+  senha: "tucanolindo",
+  nome: "Tucano",
+};
 
 export default function Login() {
   const router = useRouter();
+  const { setEmailUsuario, setNomeUsuario } = useContext(LayoutContext);
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState("");
   const [exibirModal, setExibirModal] = useState(false);
 
   function handleLogin() {
-    // Quando implementar o login real (Firebase Auth), substitua pela validação.
-    setExibirModal(true);
+    if (
+      email.trim().toLowerCase() === DEMO_USER.email &&
+      senha === DEMO_USER.senha
+    ) {
+      setEmailUsuario(DEMO_USER.email);
+      setNomeUsuario(DEMO_USER.nome);
+      setErro("");
+      setExibirModal(true);
+    } else {
+      setErro("Email ou senha incorretos.");
+    }
   }
 
   return (
@@ -69,6 +88,10 @@ export default function Login() {
                 placeholderTextColor={COLORS.sky300}
               />
             </View>
+
+            {erro ? (
+              <Text className="text-center text-sm text-red-500">{erro}</Text>
+            ) : null}
 
             <Pressable
               onPress={handleLogin}

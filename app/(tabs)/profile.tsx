@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Settings, Calendar, Heart, MessageCircle, Award } from "lucide-react-native";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
+import { LayoutContext } from "../../src/contexts/LayoutContext";
 
 type TipoUsuario = "Paciente" | "Psicólogo";
 
@@ -18,6 +19,7 @@ const menuOpcoes = [
 
 export default function Profile() {
   const router = useRouter();
+  const { nomeUsuario } = useContext(LayoutContext);
   const [userType, setUserType] = useState<TipoUsuario>("Paciente");
 
   const stats =
@@ -46,10 +48,12 @@ export default function Profile() {
         {/* Avatar e Info */}
         <View className="items-center rounded-2xl bg-white/80 p-6 shadow-md">
           <View className="mb-4 h-24 w-24 items-center justify-center rounded-full bg-sky-300 shadow-lg">
-            <Text className="text-3xl text-white">JS</Text>
+            <Text className="text-3xl text-white">
+              {nomeUsuario ? nomeUsuario.slice(0, 2).toUpperCase() : "??"}
+            </Text>
           </View>
 
-          <Text className="mb-1 text-2xl text-sky-800">João Silva</Text>
+          <Text className="mb-1 text-2xl text-sky-800">{nomeUsuario || "Usuário"}</Text>
 
           <View className="mt-3 flex-row gap-2">
             {(["Paciente", "Psicólogo"] as TipoUsuario[]).map((tipo) => (
