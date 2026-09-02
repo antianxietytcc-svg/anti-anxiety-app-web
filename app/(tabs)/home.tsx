@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView } from "moti";
 import { User } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { GradientBackground } from "../../src/components/GradientBackground";
+import { ModalChatEmergencia } from "../../src/components/ModalChatEmergencia";
 import { GRADIENTS, COLORS } from "../../src/constants/theme";
 
 export default function Emergency() {
   const router = useRouter();
+  const [chatAberto, setChatAberto] = useState(false);
 
   return (
     <GradientBackground>
@@ -22,11 +25,7 @@ export default function Emergency() {
         </View>
 
         <View className="flex-1 items-center justify-center px-4">
-          <Pressable
-            onPress={() => {
-              // TODO: disparar o som calmante (expo-av) aqui.
-            }}
-          >
+          <Pressable onPress={() => setChatAberto(true)}>
             {({ pressed }) => (
               <View
                 style={{
@@ -78,6 +77,11 @@ export default function Emergency() {
           </Pressable>
         </View>
       </View>
+
+      <ModalChatEmergencia
+        visivel={chatAberto}
+        aoFechar={() => setChatAberto(false)}
+      />
     </GradientBackground>
   );
 }

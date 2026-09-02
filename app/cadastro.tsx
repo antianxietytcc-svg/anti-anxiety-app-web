@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,32 +13,32 @@ import { GradientBackground } from "../src/components/GradientBackground";
 import { COLORS } from "../src/constants/theme";
 import { LayoutContext } from "../src/contexts/LayoutContext";
 
-export default function Login() {
+export default function Cadastro() {
   const router = useRouter();
-  const { login, usuarioLogado, estaCarregando } = useContext(LayoutContext);
+  const { cadastrar } = useContext(LayoutContext);
 
+  const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
   const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(false);
 
-  // Se já tiver sessão salva, redireciona direto
-  useEffect(() => {
-    if (!estaCarregando && usuarioLogado) {
-      router.replace("/(tabs)/home");
-    }
-  }, [estaCarregando, usuarioLogado]);
-
-  function handleLogin() {
+  function handleCadastro() {
     setErro("");
-    const resultado = login(email, senha);
+    if (senha !== confirmar) {
+      setErro("As senhas não coincidem.");
+      return;
+    }
+    setCarregando(true);
+    const resultado = cadastrar(nome, email, senha);
+    setCarregando(false);
     if (resultado.sucesso) {
       router.replace("/(tabs)/home");
     } else {
-      setErro(resultado.erro ?? "Erro ao entrar.");
+      setErro(resultado.erro ?? "Erro ao cadastrar.");
     }
   }
-
-  if (estaCarregando) return null;
 
   return (
     <GradientBackground>
@@ -47,16 +47,28 @@ export default function Login() {
         className="flex-1 items-center justify-center px-4"
       >
         <View className="w-full max-w-md rounded-3xl border border-blue-100 bg-white/80 p-6 shadow-2xl sm:p-8">
-          <View className="mb-8 items-center">
+          <View className="mb-6 items-center">
             <View className="mb-3 flex-row items-center justify-center gap-2">
-              <Cloud size={32} color={COLORS.sky400} strokeWidth={1.5} />
-              <Heart size={24} color={COLORS.sky300} strokeWidth={1.5} />
+              <Cloud size={28} color={COLORS.sky400} strokeWidth={1.5} />
+              <Heart size={20} color={COLORS.sky300} strokeWidth={1.5} />
             </View>
-            <Text className="mb-2 text-3xl text-sky-700">anti-anxiety</Text>
-            <Text className="text-sm text-sky-600/70">Respire fundo e relaxe</Text>
+            <Text className="mb-1 text-2xl text-sky-700">Criar conta</Text>
+            <Text className="text-sm text-sky-600/70">Comece sua jornada de bem-estar</Text>
           </View>
 
           <View className="gap-4">
+            <View>
+              <Text className="mb-1 text-sm text-sky-700">Nome</Text>
+              <TextInput
+                value={nome}
+                onChangeText={setNome}
+                autoCapitalize="words"
+                className="rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3 text-sky-800"
+                placeholder="Seu nome"
+                placeholderTextColor={COLORS.sky300}
+              />
+            </View>
+
             <View>
               <Text className="mb-1 text-sm text-sky-700">Email</Text>
               <TextInput
@@ -77,6 +89,18 @@ export default function Login() {
                 onChangeText={setSenha}
                 secureTextEntry
                 className="rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3 text-sky-800"
+                placeholder="Mínimo 6 caracteres"
+                placeholderTextColor={COLORS.sky300}
+              />
+            </View>
+
+            <View>
+              <Text className="mb-1 text-sm text-sky-700">Confirmar senha</Text>
+              <TextInput
+                value={confirmar}
+                onChangeText={setConfirmar}
+                secureTextEntry
+                className="rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3 text-sky-800"
                 placeholder="••••••••"
                 placeholderTextColor={COLORS.sky300}
               />
@@ -87,22 +111,18 @@ export default function Login() {
             ) : null}
 
             <Pressable
-              onPress={handleLogin}
+              onPress={handleCadastro}
+              disabled={carregando}
               className="mt-2 rounded-xl bg-sky-400 py-3.5 active:bg-sky-500"
             >
-              <Text className="text-center text-base text-white">Entrar</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => router.push("/cadastro")}
-              className="rounded-xl border border-sky-300 py-3.5 active:bg-sky-50"
-            >
-              <Text className="text-center text-base text-sky-600">Criar conta</Text>
+              <Text className="text-center text-base text-white">
+                {carregando ? "Criando conta…" : "Criar conta"}
+              </Text>
             </Pressable>
           </View>
 
-          <Pressable className="mt-5 items-center">
-            <Text className="text-sm text-sky-600">Esqueceu a senha?</Text>
+          <Pressable onPress={() => router.back()} className="mt-5 items-center">
+            <Text className="text-sm text-sky-600">Já tem uma conta? Entrar</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>

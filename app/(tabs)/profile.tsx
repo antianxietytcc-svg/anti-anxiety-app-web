@@ -5,6 +5,7 @@ import { Settings, Calendar, Heart, MessageCircle, Award } from "lucide-react-na
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
+import { getIniciais } from "../../src/components/Avatar";
 
 type TipoUsuario = "Paciente" | "Psicólogo";
 
@@ -19,7 +20,7 @@ const menuOpcoes = [
 
 export default function Profile() {
   const router = useRouter();
-  const { nomeUsuario } = useContext(LayoutContext);
+  const { nomeUsuario, emailUsuario, logout } = useContext(LayoutContext);
   const [userType, setUserType] = useState<TipoUsuario>("Paciente");
 
   const stats =
@@ -49,11 +50,14 @@ export default function Profile() {
         <View className="items-center rounded-2xl bg-white/80 p-6 shadow-md">
           <View className="mb-4 h-24 w-24 items-center justify-center rounded-full bg-sky-300 shadow-lg">
             <Text className="text-3xl text-white">
-              {nomeUsuario ? nomeUsuario.slice(0, 2).toUpperCase() : "??"}
+              {nomeUsuario ? getIniciais(nomeUsuario) : "??"}
             </Text>
           </View>
 
           <Text className="mb-1 text-2xl text-sky-800">{nomeUsuario || "Usuário"}</Text>
+          {emailUsuario ? (
+            <Text className="text-sm text-sky-500">{emailUsuario}</Text>
+          ) : null}
 
           <View className="mt-3 flex-row gap-2">
             {(["Paciente", "Psicólogo"] as TipoUsuario[]).map((tipo) => (
@@ -113,7 +117,10 @@ export default function Profile() {
 
         {/* Sair */}
         <Pressable
-          onPress={() => router.replace("/")}
+          onPress={() => {
+            logout();
+            router.replace("/");
+          }}
           className="rounded-2xl bg-white/80 px-6 py-4 shadow-md active:bg-white/90"
         >
           <Text className="text-center text-red-500">Sair da Conta</Text>
