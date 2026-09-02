@@ -12,8 +12,11 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="cadastro" />
+          <Stack.Screen name="sons" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="sobre" />
+          <Stack.Screen name="doutor" />
+          <Stack.Screen name="paciente" />
         </Stack>
       </LayoutProvider>
     </GestureHandlerRootView>

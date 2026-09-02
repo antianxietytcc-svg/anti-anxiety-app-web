@@ -24,14 +24,14 @@ export default function Cadastro() {
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
 
-  function handleCadastro() {
+  async function handleCadastro() {
     setErro("");
     if (senha !== confirmar) {
       setErro("As senhas não coincidem.");
       return;
     }
     setCarregando(true);
-    const resultado = cadastrar(nome, email, senha);
+    const resultado = await cadastrar(nome, email, senha);
     setCarregando(false);
     if (resultado.sucesso) {
       router.replace("/(tabs)/home");

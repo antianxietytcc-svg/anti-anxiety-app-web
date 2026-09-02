@@ -11,6 +11,7 @@ type TipoUsuario = "Paciente" | "Psicólogo";
 
 const menuOpcoes = [
   "Editar Perfil",
+  "Sons",
   "Histórico",
   "Privacidade",
   "Notificações",
@@ -105,6 +106,7 @@ export default function Profile() {
               key={opcao}
               onPress={() => {
                 if (opcao === "Sobre") router.push("/sobre");
+                if (opcao === "Sons") router.push("/sons");
               }}
               className={`px-6 py-4 active:bg-white/60 ${
                 index < menuOpcoes.length - 1 ? "border-b border-sky-200/30" : ""

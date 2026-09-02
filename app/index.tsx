@@ -28,9 +28,9 @@ export default function Login() {
     }
   }, [estaCarregando, usuarioLogado]);
 
-  function handleLogin() {
+  async function handleLogin() {
     setErro("");
-    const resultado = login(email, senha);
+    const resultado = await login(email, senha);
     if (resultado.sucesso) {
       router.replace("/(tabs)/home");
     } else {

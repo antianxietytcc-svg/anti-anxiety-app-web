@@ -1,8 +1,19 @@
 import { createContext, useEffect, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
+import {
+  cadastrarPaciente,
+  loginPaciente,
+  getPaciente,
+  atualizarPaciente,
+  adicionarMensagemEmergenciaFS,
+  listarMensagensEmergencia,
+  limparEmergenciaFS,
+  type PacienteFirestore,
+  type MensagemEmergenciaFirestore,
+} from "../lib/firestore";
 
 // ---------------------------------------------------------------------------
-// localStorage helpers (web-only; no-op on native)
+// localStorage — apenas para sessão e preferências locais
 // ---------------------------------------------------------------------------
 const storage = {
   get: (key: string): string | null => {
@@ -20,27 +31,53 @@ const storage = {
 };
 
 // ---------------------------------------------------------------------------
+// Re-export do tipo de mensagem de emergência com o mesmo nome que o resto do
+// app usa (para não quebrar ModalChatEmergencia etc.)
+// ---------------------------------------------------------------------------
+export type MensagemEmergencia = MensagemEmergenciaFirestore;
+export type { PacienteFirestore as Usuario };
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-export interface Usuario {
-  nome: string;
-  email: string;
-  senha: string; // stored locally for demo — never do this in production
-}
+export type NomeSom =
+  | "Default"
+  | "Minecraft"
+  | "Splash"
+  | "Secret"
+  | "Secret2"
+  | "Secret3"
+  | "Secret4"
+  | "Secret5"
+  | "Secret6"
+  | "Secret7"
+  | "Secret8"
+  | "Secret9";
 
-export interface MensagemEmergencia {
-  id: string;
-  texto: string;
-  autor: "usuario" | "terapeuta";
-  hora: string;
-}
+export const SONS_PUBLICOS: { id: NomeSom; label: string }[] = [
+  { id: "Default", label: "Padrão" },
+  { id: "Minecraft", label: "Minecraft" },
+  { id: "Splash", label: "Splash" },
+];
+
+export const SONS_SECRETOS: { id: NomeSom; label: string }[] = [
+  { id: "Secret", label: "Secreto 1" },
+  { id: "Secret2", label: "Secreto 2" },
+  { id: "Secret3", label: "Secreto 3" },
+  { id: "Secret4", label: "Secreto 4" },
+  { id: "Secret5", label: "Secreto 5" },
+  { id: "Secret6", label: "Secreto 6" },
+  { id: "Secret7", label: "Secreto 7" },
+  { id: "Secret8", label: "Secreto 8" },
+  { id: "Secret9", label: "Secreto 9" },
+];
 
 interface LayoutContextType {
   // auth
-  usuarioLogado: Usuario | null;
+  usuarioLogado: PacienteFirestore | null;
   estaCarregando: boolean;
-  login: (email: string, senha: string) => { sucesso: boolean; erro?: string };
-  cadastrar: (nome: string, email: string, senha: string) => { sucesso: boolean; erro?: string };
+  login: (email: string, senha: string) => Promise<{ sucesso: boolean; erro?: string }>;
+  cadastrar: (nome: string, email: string, senha: string) => Promise<{ sucesso: boolean; erro?: string }>;
   logout: () => void;
   // compat aliases
   emailUsuario: string;
@@ -52,16 +89,21 @@ interface LayoutContextType {
   setMenuAberto: (aberto: boolean) => void;
   // emergency chat
   mensagensEmergencia: MensagemEmergencia[];
-  adicionarMensagemEmergencia: (texto: string) => void;
-  limparMensagensEmergencia: () => void;
+  adicionarMensagemEmergencia: (texto: string) => Promise<void>;
+  limparMensagensEmergencia: () => Promise<void>;
+  // sons
+  sonSelecionado: NomeSom;
+  setSonSelecionado: (som: NomeSom) => void;
+  secretosDesbloqueados: boolean;
+  desbloquearSecretos: () => void;
 }
 
 // ---------------------------------------------------------------------------
-// Storage keys
+// Storage keys (apenas sessão e preferências locais)
 // ---------------------------------------------------------------------------
-const KEY_USUARIOS = "aa_usuarios";
 const KEY_SESSAO = "aa_sessao";
-const KEY_MSGS = "aa_msgs_emergencia";
+const KEY_SOM = "aa_som_selecionado";
+const KEY_SECRETOS = "aa_secretos_desbloqueados";
 
 // ---------------------------------------------------------------------------
 // Context
@@ -69,8 +111,8 @@ const KEY_MSGS = "aa_msgs_emergencia";
 export const LayoutContext = createContext<LayoutContextType>({
   usuarioLogado: null,
   estaCarregando: true,
-  login: () => ({ sucesso: false }),
-  cadastrar: () => ({ sucesso: false }),
+  login: async () => ({ sucesso: false }),
+  cadastrar: async () => ({ sucesso: false }),
   logout: () => {},
   emailUsuario: "",
   nomeUsuario: "",
@@ -79,119 +121,121 @@ export const LayoutContext = createContext<LayoutContextType>({
   menuAberto: false,
   setMenuAberto: () => {},
   mensagensEmergencia: [],
-  adicionarMensagemEmergencia: () => {},
-  limparMensagensEmergencia: () => {},
+  adicionarMensagemEmergencia: async () => {},
+  limparMensagensEmergencia: async () => {},
+  sonSelecionado: "Default",
+  setSonSelecionado: () => {},
+  secretosDesbloqueados: false,
+  desbloquearSecretos: () => {},
 });
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-function lerUsuarios(): Usuario[] {
-  try {
-    const raw = storage.get(KEY_USUARIOS);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function salvarUsuarios(lista: Usuario[]) {
-  storage.set(KEY_USUARIOS, JSON.stringify(lista));
-}
-
-function lerMensagens(): MensagemEmergencia[] {
-  try {
-    const raw = storage.get(KEY_MSGS);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function salvarMensagens(msgs: MensagemEmergencia[]) {
-  storage.set(KEY_MSGS, JSON.stringify(msgs));
-}
-
-function horaAgora() {
-  return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
 
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
 export function LayoutProvider({ children }: { children: ReactNode }) {
-  const [usuarioLogado, setUsuarioLogado] = useState<Usuario | null>(null);
+  const [usuarioLogado, setUsuarioLogado] = useState<PacienteFirestore | null>(null);
   const [estaCarregando, setEstaCarregando] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
   const [mensagensEmergencia, setMensagensEmergencia] = useState<MensagemEmergencia[]>([]);
 
+  // Preferências locais (não faz sentido sincronizar entre browsers)
+  const [sonSelecionado, setSonSelecionadoState] = useState<NomeSom>("Default");
+  const [secretosDesbloqueados, setSecretosDesbloqueados] = useState(false);
+
   // Restore session on mount
   useEffect(() => {
-    const emailSessao = storage.get(KEY_SESSAO);
-    if (emailSessao) {
-      const usuarios = lerUsuarios();
-      const encontrado = usuarios.find((u) => u.email === emailSessao) ?? null;
-      setUsuarioLogado(encontrado);
+    async function restaurar() {
+      // Preferências locais
+      const somSalvo = storage.get(KEY_SOM) as NomeSom | null;
+      if (somSalvo) setSonSelecionadoState(somSalvo);
+      if (storage.get(KEY_SECRETOS) === "true") setSecretosDesbloqueados(true);
+
+      // Sessão de paciente
+      const emailSessao = storage.get(KEY_SESSAO);
+      if (emailSessao) {
+        try {
+          const paciente = await getPaciente(emailSessao);
+          if (paciente) {
+            setUsuarioLogado(paciente);
+            const msgs = await listarMensagensEmergencia(emailSessao);
+            setMensagensEmergencia(msgs);
+          } else {
+            // usuário removido do Firestore — limpa sessão
+            storage.remove(KEY_SESSAO);
+          }
+        } catch {
+          // Firebase ainda não configurado ou sem rede — não trava o app
+        }
+      }
+
+      setEstaCarregando(false);
     }
-    setMensagensEmergencia(lerMensagens());
-    setEstaCarregando(false);
+    restaurar();
   }, []);
 
   // ---------------------------------------------------------------------------
-  function login(email: string, senha: string): { sucesso: boolean; erro?: string } {
-    const normalizado = email.trim().toLowerCase();
-    const usuarios = lerUsuarios();
-    const usuario = usuarios.find(
-      (u) => u.email === normalizado && u.senha === senha
-    );
-    if (!usuario) return { sucesso: false, erro: "Email ou senha incorretos." };
-    setUsuarioLogado(usuario);
-    storage.set(KEY_SESSAO, normalizado);
+  async function login(
+    email: string,
+    senha: string
+  ): Promise<{ sucesso: boolean; erro?: string }> {
+    const res = await loginPaciente(email, senha);
+    if (!res.sucesso || !res.paciente) return { sucesso: false, erro: res.erro };
+    setUsuarioLogado(res.paciente);
+    storage.set(KEY_SESSAO, res.paciente.email);
+    // carrega mensagens de emergência do Firebase
+    const msgs = await listarMensagensEmergencia(res.paciente.email);
+    setMensagensEmergencia(msgs);
     return { sucesso: true };
   }
 
-  function cadastrar(
+  async function cadastrar(
     nome: string,
     email: string,
     senha: string
-  ): { sucesso: boolean; erro?: string } {
-    const normalizado = email.trim().toLowerCase();
-    const nomeTrimado = nome.trim();
-    if (!nomeTrimado) return { sucesso: false, erro: "O nome é obrigatório." };
-    if (!normalizado.includes("@")) return { sucesso: false, erro: "Email inválido." };
-    if (senha.length < 6) return { sucesso: false, erro: "A senha deve ter pelo menos 6 caracteres." };
-
-    const usuarios = lerUsuarios();
-    if (usuarios.find((u) => u.email === normalizado)) {
-      return { sucesso: false, erro: "Este email já está cadastrado." };
-    }
-
-    const novoUsuario: Usuario = { nome: nomeTrimado, email: normalizado, senha };
-    salvarUsuarios([...usuarios, novoUsuario]);
-    setUsuarioLogado(novoUsuario);
-    storage.set(KEY_SESSAO, normalizado);
+  ): Promise<{ sucesso: boolean; erro?: string }> {
+    const res = await cadastrarPaciente(nome, email, senha);
+    if (!res.sucesso || !res.paciente) return { sucesso: false, erro: res.erro };
+    setUsuarioLogado(res.paciente);
+    storage.set(KEY_SESSAO, res.paciente.email);
+    setMensagensEmergencia([]);
     return { sucesso: true };
   }
 
   function logout() {
     setUsuarioLogado(null);
+    setMensagensEmergencia([]);
     storage.remove(KEY_SESSAO);
   }
 
   // ---------------------------------------------------------------------------
-  function adicionarMensagemEmergencia(texto: string) {
-    setMensagensEmergencia((prev) => {
-      const nova: MensagemEmergencia = {
-        id: String(Date.now()),
-        texto,
-        autor: "usuario",
-        hora: horaAgora(),
-      };
-      const atualizadas = [...prev, nova];
-      salvarMensagens(atualizadas);
-      return atualizadas;
-    });
+  async function adicionarMensagemEmergencia(texto: string): Promise<void> {
+    if (!usuarioLogado) return;
+    const nova = await adicionarMensagemEmergenciaFS(usuarioLogado.email, texto, "usuario");
+    setMensagensEmergencia((prev) => [...prev, nova]);
   }
 
-  function limparMensagensEmergencia() {
+  async function limparMensagensEmergencia(): Promise<void> {
+    if (!usuarioLogado) return;
+    await limparEmergenciaFS(usuarioLogado.email);
     setMensagensEmergencia([]);
-    storage.remove(KEY_MSGS);
+  }
+
+  // ---------------------------------------------------------------------------
+  function setSonSelecionado(som: NomeSom) {
+    setSonSelecionadoState(som);
+    storage.set(KEY_SOM, som);
+    // persiste no perfil do Firestore também, sem bloquear a UI
+    if (usuarioLogado) {
+      atualizarPaciente(usuarioLogado.email, { sonSelecionado: som }).catch(() => {});
+    }
+  }
+
+  function desbloquearSecretos() {
+    setSecretosDesbloqueados(true);
+    storage.set(KEY_SECRETOS, "true");
+    if (usuarioLogado) {
+      atualizarPaciente(usuarioLogado.email, { secretosDesbloqueados: true }).catch(() => {});
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -203,7 +247,6 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
         login,
         cadastrar,
         logout,
-        // compat
         emailUsuario: usuarioLogado?.email ?? "",
         nomeUsuario: usuarioLogado?.nome ?? "",
         setEmailUsuario: () => {},
@@ -213,6 +256,10 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
         mensagensEmergencia,
         adicionarMensagemEmergencia,
         limparMensagensEmergencia,
+        sonSelecionado,
+        setSonSelecionado,
+        secretosDesbloqueados,
+        desbloquearSecretos,
       }}
     >
       {children}
