@@ -10,8 +10,16 @@ import {
 import { useRouter } from "expo-router";
 import { Cloud, Heart } from "lucide-react-native";
 import { GradientBackground } from "../src/components/GradientBackground";
+import { ModalMensagem } from "../src/components/ModalMensagem";
 import { COLORS } from "../src/constants/theme";
 import { LayoutContext } from "../src/contexts/LayoutContext";
+
+// ---------------------------------------------------------------------------
+// Validação simples sem dependências externas
+// ---------------------------------------------------------------------------
+function validarEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 export default function Login() {
   const router = useRouter();
@@ -20,6 +28,11 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(false);
+
+  // Modal de demonstração (requisito acadêmico)
+  const [modalDemo, setModalDemo] = useState(false);
+  const [textoModal, setTextoModal] = useState("");
 
   // Se já tiver sessão salva, redireciona direto
   useEffect(() => {
@@ -30,9 +43,33 @@ export default function Login() {
 
   async function handleLogin() {
     setErro("");
-    const resultado = await login(email, senha);
+
+    // Validação local
+    if (!email.trim()) {
+      setErro("O e-mail é obrigatório.");
+      return;
+    }
+    if (!validarEmail(email.trim())) {
+      setErro("Informe um e-mail válido.");
+      return;
+    }
+    if (!senha) {
+      setErro("A senha é obrigatória.");
+      return;
+    }
+    if (senha.length < 6) {
+      setErro("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    setCarregando(true);
+    const resultado = await login(email.trim().toLowerCase(), senha);
+    setCarregando(false);
+
     if (resultado.sucesso) {
-      router.replace("/(tabs)/home");
+      // Requisito acadêmico: mostra dados submetidos via ModalMensagem antes de navegar
+      setTextoModal(`E-mail: ${email.trim().toLowerCase()}\nLogin realizado com sucesso.`);
+      setModalDemo(true);
     } else {
       setErro(resultado.erro ?? "Erro ao entrar.");
     }
@@ -44,68 +81,166 @@ export default function Login() {
     <GradientBackground>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1 items-center justify-center px-4"
+        style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 }}
       >
-        <View className="w-full max-w-md rounded-3xl border border-blue-100 bg-white/80 p-6 shadow-2xl sm:p-8">
-          <View className="mb-8 items-center">
-            <View className="mb-3 flex-row items-center justify-center gap-2">
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 440,
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: "#bfdbfe",
+            backgroundColor: "rgba(255,255,255,0.8)",
+            padding: 24,
+          }}
+        >
+          {/* Logo */}
+          <View style={{ alignItems: "center", marginBottom: 28 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                marginBottom: 10,
+              }}
+            >
               <Cloud size={32} color={COLORS.sky400} strokeWidth={1.5} />
               <Heart size={24} color={COLORS.sky300} strokeWidth={1.5} />
             </View>
-            <Text className="mb-2 text-3xl text-sky-700">anti-anxiety</Text>
-            <Text className="text-sm text-sky-600/70">Respire fundo e relaxe</Text>
+            <Text style={{ fontSize: 28, color: COLORS.sky700, marginBottom: 4 }}>
+              anti-anxiety
+            </Text>
+            <Text style={{ fontSize: 13, color: COLORS.sky500 }}>
+              Respire fundo e relaxe
+            </Text>
           </View>
 
-          <View className="gap-4">
+          {/* Campos */}
+          <View style={{ gap: 14 }}>
             <View>
-              <Text className="mb-1 text-sm text-sky-700">Email</Text>
+              <Text
+                style={{ fontSize: 13, color: COLORS.sky700, marginBottom: 6 }}
+              >
+                E-mail
+              </Text>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                className="rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3 text-sky-800"
+                autoCorrect={false}
                 placeholder="seu@email.com"
                 placeholderTextColor={COLORS.sky300}
+                accessibilityLabel="Campo de e-mail"
+                style={{
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: "#bae6fd",
+                  backgroundColor: "rgba(240,249,255,0.5)",
+                  paddingHorizontal: 16,
+                  paddingVertical: 13,
+                  color: COLORS.sky800,
+                  fontSize: 15,
+                }}
               />
             </View>
 
             <View>
-              <Text className="mb-1 text-sm text-sky-700">Senha</Text>
+              <Text
+                style={{ fontSize: 13, color: COLORS.sky700, marginBottom: 6 }}
+              >
+                Senha
+              </Text>
               <TextInput
                 value={senha}
                 onChangeText={setSenha}
                 secureTextEntry
-                className="rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3 text-sky-800"
                 placeholder="••••••••"
                 placeholderTextColor={COLORS.sky300}
+                accessibilityLabel="Campo de senha"
+                style={{
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: "#bae6fd",
+                  backgroundColor: "rgba(240,249,255,0.5)",
+                  paddingHorizontal: 16,
+                  paddingVertical: 13,
+                  color: COLORS.sky800,
+                  fontSize: 15,
+                }}
               />
             </View>
 
             {erro ? (
-              <Text className="text-center text-sm text-red-500">{erro}</Text>
+              <Text
+                style={{ color: "#ef4444", fontSize: 13, textAlign: "center" }}
+                accessibilityRole="alert"
+              >
+                {erro}
+              </Text>
             ) : null}
 
             <Pressable
               onPress={handleLogin}
-              className="mt-2 rounded-xl bg-sky-400 py-3.5 active:bg-sky-500"
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityLabel="Entrar"
+              style={({ pressed }) => ({
+                marginTop: 4,
+                borderRadius: 14,
+                backgroundColor: pressed ? COLORS.sky600 : COLORS.sky400,
+                paddingVertical: 14,
+                alignItems: "center",
+                opacity: carregando ? 0.7 : 1,
+              })}
             >
-              <Text className="text-center text-base text-white">Entrar</Text>
+              <Text style={{ color: "#fff", fontSize: 15 }}>
+                {carregando ? "Entrando…" : "Entrar"}
+              </Text>
             </Pressable>
 
             <Pressable
               onPress={() => router.push("/cadastro")}
-              className="rounded-xl border border-sky-300 py-3.5 active:bg-sky-50"
+              accessibilityRole="button"
+              accessibilityLabel="Criar conta"
+              style={({ pressed }) => ({
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: COLORS.sky300,
+                paddingVertical: 14,
+                alignItems: "center",
+                backgroundColor: pressed ? COLORS.sky50 : "transparent",
+              })}
             >
-              <Text className="text-center text-base text-sky-600">Criar conta</Text>
+              <Text style={{ color: COLORS.sky600, fontSize: 15 }}>
+                Criar conta
+              </Text>
             </Pressable>
           </View>
 
-          <Pressable className="mt-5 items-center">
-            <Text className="text-sm text-sky-600">Esqueceu a senha?</Text>
+          <Pressable
+            style={{ marginTop: 16, alignItems: "center" }}
+            accessibilityRole="button"
+            accessibilityLabel="Esqueceu a senha?"
+          >
+            <Text style={{ fontSize: 13, color: COLORS.sky500 }}>
+              Esqueceu a senha?
+            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Modal de demonstração (requisito acadêmico) */}
+      <ModalMensagem
+        exibir={modalDemo}
+        titulo="Login efetuado!"
+        texto={textoModal}
+        ocultar={() => {
+          setModalDemo(false);
+          router.replace("/(tabs)/home");
+        }}
+      />
     </GradientBackground>
   );
 }

@@ -17,6 +17,9 @@ export default function RootLayout() {
           <Stack.Screen name="sobre" />
           <Stack.Screen name="doutor" />
           <Stack.Screen name="paciente" />
+          <Stack.Screen name="emergencia" />
+          <Stack.Screen name="psicologos" />
+          <Stack.Screen name="contatos-emergencia" />
         </Stack>
       </LayoutProvider>
     </GestureHandlerRootView>

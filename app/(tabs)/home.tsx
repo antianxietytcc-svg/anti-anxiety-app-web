@@ -1,175 +1,205 @@
-import { useCallback, useContext, useState } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { MotiView } from "moti";
-import { User } from "lucide-react-native";
+/**
+ * Tela Home — tela principal após autenticação.
+ * Dá acesso rápido às funcionalidades do app.
+ */
+import { useContext } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import {
+  AlertCircle,
+  Users,
+  MessageCircle,
+  UserCheck,
+  User,
+  Info,
+} from "lucide-react-native";
 import { GradientBackground } from "../../src/components/GradientBackground";
-import { ModalChatEmergencia } from "../../src/components/ModalChatEmergencia";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
-import { useSom } from "../../src/hooks/useSom";
-import { useKonami } from "../../src/hooks/useKonami";
-import { GRADIENTS, COLORS } from "../../src/constants/theme";
+import { COLORS } from "../../src/constants/theme";
 
-export default function Emergency() {
+interface CardAcesso {
+  titulo: string;
+  descricao: string;
+  rota: string;
+  Icon: typeof AlertCircle;
+  destaque?: boolean;
+  cor: string;
+  corFundo: string;
+}
+
+const cardsAcesso: CardAcesso[] = [
+  {
+    titulo: "Emergência",
+    descricao: "Acione seu botão de apoio e entre em contato com sua rede.",
+    rota: "/emergencia",
+    Icon: AlertCircle,
+    destaque: true,
+    cor: "#fff",
+    corFundo: COLORS.sky500,
+  },
+  {
+    titulo: "Rede de Apoio",
+    descricao: "Leia e compartilhe experiências com outras pessoas.",
+    rota: "/(tabs)/explore",
+    Icon: Users,
+    cor: COLORS.sky700,
+    corFundo: COLORS.sky100,
+  },
+  {
+    titulo: "Chat",
+    descricao: "Converse com psicólogos e sua rede de apoio.",
+    rota: "/(tabs)/chat",
+    Icon: MessageCircle,
+    cor: COLORS.sky700,
+    corFundo: COLORS.sky100,
+  },
+  {
+    titulo: "Psicólogos",
+    descricao: "Encontre profissionais e agende uma consulta.",
+    rota: "/psicologos",
+    Icon: UserCheck,
+    cor: COLORS.sky700,
+    corFundo: COLORS.sky100,
+  },
+  {
+    titulo: "Perfil",
+    descricao: "Gerencie seus dados e contatos de emergência.",
+    rota: "/(tabs)/profile",
+    Icon: User,
+    cor: COLORS.sky700,
+    corFundo: COLORS.sky100,
+  },
+  {
+    titulo: "Sobre",
+    descricao: "Saiba mais sobre o projeto Anti-Anxiety.",
+    rota: "/sobre",
+    Icon: Info,
+    cor: COLORS.sky700,
+    corFundo: COLORS.sky100,
+  },
+];
+
+export default function Home() {
   const router = useRouter();
-  const { sonSelecionado, secretosDesbloqueados, desbloquearSecretos } =
-    useContext(LayoutContext);
+  const { nomeUsuario } = useContext(LayoutContext);
 
-  const [chatAberto, setChatAberto] = useState(false);
-  const [modalKonami, setModalKonami] = useState(false);
-
-  const { tocar } = useSom(sonSelecionado);
-  const { tocar: tocarSecret } = useSom("Secret");
-
-  const handleKonami = useCallback(() => {
-    tocarSecret();
-    if (!secretosDesbloqueados) {
-      desbloquearSecretos();
-    }
-    setModalKonami(true);
-  }, [secretosDesbloqueados, tocarSecret, desbloquearSecretos]);
-
-  useKonami(handleKonami);
+  const primeiroNome = nomeUsuario
+    ? nomeUsuario.split(" ")[0]
+    : "Usuário";
 
   return (
     <GradientBackground>
-      <View className="flex-1">
-        <View className="flex-row justify-end p-6">
-          <Pressable
-            onPress={() => router.push("/profile")}
-            className="h-10 w-10 items-center justify-center rounded-full border border-sky-200 bg-white/60"
-          >
-            <User size={20} color={COLORS.sky600} strokeWidth={1.5} />
-          </Pressable>
-        </View>
-
-        <View className="flex-1 items-center justify-center px-4">
-          <Pressable
-            onPress={() => {
-              tocar();
-              setChatAberto(true);
-            }}
-          >
-            {({ pressed }) => (
-              <View
-                style={{
-                  transform: [{ scale: pressed ? 0.92 : 1 }],
-                  width: 260,
-                  height: 260,
-                  borderRadius: 130,
-                  overflow: "hidden",
-                  elevation: 12,
-                  shadowColor: COLORS.sky400,
-                  shadowOpacity: 0.4,
-                  shadowRadius: 30,
-                }}
-              >
-                <LinearGradient
-                  colors={GRADIENTS.emergencyButton}
-                  style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-                >
-                  {/* Pulso externo */}
-                  <MotiView
-                    className="absolute inset-0 rounded-full bg-white/20"
-                    from={{ scale: 1, opacity: 0.5 }}
-                    animate={{ scale: 1.2, opacity: 0.8 }}
-                    transition={{ type: "timing", duration: 1500, loop: true, repeatReverse: true }}
-                  />
-
-                  {/* Brilho interno */}
-                  <MotiView
-                    className="absolute inset-8 rounded-full bg-white/30"
-                    from={{ scale: 1 }}
-                    animate={{ scale: 1.1 }}
-                    transition={{ type: "timing", duration: 1250, loop: true, repeatReverse: true }}
-                  />
-
-                  <Text className="z-10 text-3xl text-white">emergência</Text>
-                </LinearGradient>
-              </View>
-            )}
-          </Pressable>
-        </View>
+      {/* Cabeçalho */}
+      <View
+        style={{
+          paddingHorizontal: 24,
+          paddingTop: 20,
+          paddingBottom: 16,
+          backgroundColor: "rgba(255,255,255,0.8)",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(186,230,253,0.5)",
+        }}
+      >
+        <Text style={{ fontSize: 13, color: COLORS.sky500, marginBottom: 2 }}>
+          Bem-vindo(a),
+        </Text>
+        <Text style={{ fontSize: 24, color: COLORS.sky700 }}>
+          {primeiroNome} 👋
+        </Text>
+        <Text style={{ fontSize: 13, color: COLORS.sky600, marginTop: 4 }}>
+          Como você está se sentindo hoje?
+        </Text>
       </View>
 
-      <ModalChatEmergencia
-        visivel={chatAberto}
-        aoFechar={() => setChatAberto(false)}
-      />
-
-      {/* Modal Konami */}
-      <Modal
-        visible={modalKonami}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalKonami(false)}
+      <ScrollView
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: 100,
+          gap: 12,
+        }}
       >
+        {/* Aviso informativo */}
         <View
           style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.35)",
-            paddingHorizontal: 24,
+            backgroundColor: "#fffbeb",
+            borderRadius: 12,
+            padding: 12,
+            borderWidth: 1,
+            borderColor: "#fde68a",
           }}
         >
-          <View
-            style={{
-              width: "100%",
-              maxWidth: 340,
-              borderRadius: 24,
-              backgroundColor: "#fff",
-              overflow: "hidden",
-              borderWidth: 1,
-              borderColor: "#bae6fd",
-            }}
-          >
-            <LinearGradient
-              colors={GRADIENTS.emergencyButton}
-              style={{ paddingVertical: 20, alignItems: "center" }}
-            >
-              <Text style={{ fontSize: 36 }}>🎮</Text>
-              <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", marginTop: 6 }}>
-                Código Konami!
-              </Text>
-            </LinearGradient>
+          <Text style={{ fontSize: 12, color: "#92400e", textAlign: "center", lineHeight: 18 }}>
+            ⚠️ Este aplicativo é um recurso complementar de apoio e acolhimento.{"\n"}
+            Não substitui acompanhamento médico ou psicológico.
+          </Text>
+        </View>
 
-            <View style={{ padding: 24, alignItems: "center" }}>
+        {/* Cards de acesso rápido */}
+        {cardsAcesso.map((card) => (
+          <Pressable
+            key={card.titulo}
+            onPress={() => router.push(card.rota as any)}
+            style={({ pressed }) => ({
+              backgroundColor: card.corFundo,
+              borderRadius: 16,
+              padding: 20,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 16,
+              opacity: pressed ? 0.85 : 1,
+              borderWidth: card.destaque ? 0 : 1,
+              borderColor: "rgba(186,230,253,0.4)",
+              shadowColor: "#000",
+              shadowOpacity: card.destaque ? 0.15 : 0.05,
+              shadowRadius: card.destaque ? 12 : 4,
+              elevation: card.destaque ? 4 : 1,
+            })}
+            accessibilityRole="button"
+            accessibilityLabel={`Ir para ${card.titulo}`}
+          >
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: card.destaque
+                  ? "rgba(255,255,255,0.25)"
+                  : COLORS.sky200,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <card.Icon
+                size={24}
+                color={card.cor}
+                strokeWidth={1.5}
+                aria-hidden
+              />
+            </View>
+
+            <View style={{ flex: 1 }}>
               <Text
                 style={{
-                  color: COLORS.sky800,
-                  fontSize: 15,
-                  textAlign: "center",
-                  lineHeight: 22,
+                  fontSize: 16,
+                  color: card.cor,
+                  marginBottom: 3,
                 }}
               >
-                Você desbloqueou sons secretos! 🔓{"\n"}Acesse{" "}
-                <Text style={{ color: COLORS.sky500, fontWeight: "600" }}>
-                  Perfil → Sons
-                </Text>{" "}
-                para escolher.
+                {card.titulo}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: card.destaque ? "rgba(255,255,255,0.85)" : COLORS.sky500,
+                  lineHeight: 18,
+                }}
+              >
+                {card.descricao}
               </Text>
             </View>
-
-            <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
-              <Pressable
-                onPress={() => setModalKonami(false)}
-                style={{
-                  backgroundColor: COLORS.sky400,
-                  borderRadius: 14,
-                  paddingVertical: 12,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>
-                  Entendido!
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+          </Pressable>
+        ))}
+      </ScrollView>
     </GradientBackground>
   );
 }

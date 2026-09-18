@@ -1,7 +1,14 @@
 import { useContext, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Settings, Calendar, Heart, MessageCircle, Award } from "lucide-react-native";
+import {
+  Settings,
+  Calendar,
+  Heart,
+  MessageCircle,
+  Award,
+  Phone,
+} from "lucide-react-native";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
@@ -9,110 +16,233 @@ import { getIniciais } from "../../src/components/Avatar";
 
 type TipoUsuario = "Paciente" | "Psicólogo";
 
-const menuOpcoes = [
-  "Editar Perfil",
-  "Sons",
-  "Histórico",
-  "Privacidade",
-  "Notificações",
-  "Ajuda e Suporte",
-  "Sobre",
-] as const;
+const menuOpcoes: {
+  label: string;
+  rota?: string;
+  acao?: string;
+}[] = [
+  { label: "Contatos de Emergência", rota: "/contatos-emergencia" },
+  { label: "Sons", rota: "/sons" },
+  { label: "Sobre", rota: "/sobre" },
+  { label: "Ajuda e Suporte" },
+  { label: "Privacidade" },
+];
 
 export default function Profile() {
   const router = useRouter();
-  const { nomeUsuario, emailUsuario, logout } = useContext(LayoutContext);
+  const {
+    nomeUsuario,
+    emailUsuario,
+    usuarioLogado,
+    logout,
+  } = useContext(LayoutContext);
   const [userType, setUserType] = useState<TipoUsuario>("Paciente");
+
+  const dataCadastro = "Não disponível";
 
   const stats =
     userType === "Paciente"
       ? [
-          { label: "Dias consecutivos", value: "15", Icon: Calendar },
-          { label: "Sessões", value: "8", Icon: MessageCircle },
-          { label: "Conquistas", value: "12", Icon: Award },
+          { label: "Dias consecutivos", value: "—", Icon: Calendar },
+          { label: "Sessões", value: "—", Icon: MessageCircle },
+          { label: "Conquistas", value: "—", Icon: Award },
         ]
       : [
-          { label: "Pacientes ativos", value: "24", Icon: MessageCircle },
-          { label: "Sessões este mês", value: "47", Icon: Calendar },
-          { label: "Avaliação", value: "4.9", Icon: Heart },
+          { label: "Pacientes ativos", value: "—", Icon: MessageCircle },
+          { label: "Sessões este mês", value: "—", Icon: Calendar },
+          { label: "Avaliação", value: "—", Icon: Heart },
         ];
 
   return (
     <GradientBackground>
-      <View className="flex-row items-center justify-between border-b border-sky-200/50 bg-white/80 px-6 py-4">
-        <Text className="text-2xl text-sky-700">Perfil</Text>
-        <Pressable>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 24,
+          paddingVertical: 14,
+          backgroundColor: "rgba(255,255,255,0.8)",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(186,230,253,0.5)",
+        }}
+      >
+        <Text style={{ fontSize: 22, color: COLORS.sky700 }}>Perfil</Text>
+        <Pressable accessibilityLabel="Configurações">
           <Settings size={24} color={COLORS.sky600} strokeWidth={1.5} />
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 96, gap: 24 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 16 }}
+      >
         {/* Avatar e Info */}
-        <View className="items-center rounded-2xl bg-white/80 p-6 shadow-md">
-          <View className="mb-4 h-24 w-24 items-center justify-center rounded-full bg-sky-300 shadow-lg">
-            <Text className="text-3xl text-white">
+        <View
+          style={{
+            alignItems: "center",
+            backgroundColor: "rgba(255,255,255,0.8)",
+            borderRadius: 20,
+            padding: 24,
+            shadowColor: "#000",
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 2,
+          }}
+        >
+          <View
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: 44,
+              backgroundColor: COLORS.sky300,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 12,
+            }}
+          >
+            <Text style={{ fontSize: 28, color: "#fff" }}>
               {nomeUsuario ? getIniciais(nomeUsuario) : "??"}
             </Text>
           </View>
 
-          <Text className="mb-1 text-2xl text-sky-800">{nomeUsuario || "Usuário"}</Text>
+          <Text style={{ fontSize: 22, color: COLORS.sky800, marginBottom: 4 }}>
+            {nomeUsuario || "Usuário"}
+          </Text>
+
           {emailUsuario ? (
-            <Text className="text-sm text-sky-500">{emailUsuario}</Text>
+            <Text style={{ fontSize: 13, color: COLORS.sky500, marginBottom: 4 }}>
+              {emailUsuario}
+            </Text>
           ) : null}
 
-          <View className="mt-3 flex-row gap-2">
+          {usuarioLogado && (
+            <Text style={{ fontSize: 12, color: COLORS.sky400 }}>
+              Membro desde {dataCadastro}
+            </Text>
+          )}
+
+          {/* Tipo de usuário */}
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              marginTop: 12,
+            }}
+          >
             {(["Paciente", "Psicólogo"] as TipoUsuario[]).map((tipo) => (
               <Pressable
                 key={tipo}
                 onPress={() => setUserType(tipo)}
-                className={`rounded-full px-4 py-2 ${
-                  userType === tipo ? "bg-sky-500" : "bg-sky-100"
-                }`}
+                accessibilityRole="button"
+                accessibilityLabel={tipo}
+                style={{
+                  borderRadius: 20,
+                  paddingHorizontal: 16,
+                  paddingVertical: 6,
+                  backgroundColor:
+                    userType === tipo ? COLORS.sky500 : COLORS.sky100,
+                }}
               >
-                <Text className={userType === tipo ? "text-sm text-white" : "text-sm text-sky-600"}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: userType === tipo ? "#fff" : COLORS.sky600,
+                  }}
+                >
                   {tipo}
                 </Text>
               </Pressable>
             ))}
           </View>
-
-          <Text className="mt-4 text-center text-sm text-sky-600">
-            {userType === "Paciente"
-              ? "Em busca de equilíbrio e paz interior 🌸"
-              : "Especialista em Terapia Cognitivo-Comportamental 🧠"}
-          </Text>
         </View>
 
         {/* Estatísticas */}
-        <View className="rounded-2xl bg-white/80 p-6 shadow-md">
-          <Text className="mb-4 text-lg text-sky-800">Estatísticas</Text>
-          <View className="flex-row justify-between">
+        <View
+          style={{
+            backgroundColor: "rgba(255,255,255,0.8)",
+            borderRadius: 20,
+            padding: 20,
+            shadowColor: "#000",
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 2,
+          }}
+        >
+          <Text
+            style={{ fontSize: 16, color: COLORS.sky800, marginBottom: 16 }}
+          >
+            Estatísticas
+          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
             {stats.map((stat) => (
-              <View key={stat.label} className="items-center">
-                <View className="mb-2 h-12 w-12 items-center justify-center rounded-full bg-sky-100">
+              <View key={stat.label} style={{ alignItems: "center" }}>
+                <View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: COLORS.sky100,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 8,
+                  }}
+                >
                   <stat.Icon size={22} color={COLORS.sky600} strokeWidth={1.5} />
                 </View>
-                <Text className="mb-1 text-2xl text-sky-800">{stat.value}</Text>
-                <Text className="text-xs text-sky-600/70">{stat.label}</Text>
+                <Text
+                  style={{
+                    fontSize: 20,
+                    color: COLORS.sky800,
+                    marginBottom: 2,
+                  }}
+                >
+                  {stat.value}
+                </Text>
+                <Text style={{ fontSize: 11, color: COLORS.sky500, textAlign: "center" }}>
+                  {stat.label}
+                </Text>
               </View>
             ))}
           </View>
         </View>
 
         {/* Menu */}
-        <View className="overflow-hidden rounded-2xl bg-white/80 shadow-md">
+        <View
+          style={{
+            backgroundColor: "rgba(255,255,255,0.8)",
+            borderRadius: 20,
+            overflow: "hidden",
+            shadowColor: "#000",
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 2,
+          }}
+        >
           {menuOpcoes.map((opcao, index) => (
             <Pressable
-              key={opcao}
+              key={opcao.label}
               onPress={() => {
-                if (opcao === "Sobre") router.push("/sobre");
-                if (opcao === "Sons") router.push("/sons");
+                if (opcao.rota) router.push(opcao.rota as any);
               }}
-              className={`px-6 py-4 active:bg-white/60 ${
-                index < menuOpcoes.length - 1 ? "border-b border-sky-200/30" : ""
-              }`}
+              accessibilityRole="button"
+              accessibilityLabel={opcao.label}
+              style={({ pressed }) => ({
+                paddingHorizontal: 20,
+                paddingVertical: 16,
+                backgroundColor: pressed ? "rgba(240,249,255,0.8)" : "transparent",
+                borderBottomWidth: index < menuOpcoes.length - 1 ? 1 : 0,
+                borderBottomColor: "rgba(186,230,253,0.3)",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              })}
             >
-              <Text className="text-sky-800">{opcao}</Text>
+              {opcao.label === "Contatos de Emergência" && (
+                <Phone size={18} color={COLORS.sky500} strokeWidth={1.5} />
+              )}
+              <Text style={{ fontSize: 15, color: COLORS.sky800 }}>
+                {opcao.label}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -123,9 +253,22 @@ export default function Profile() {
             logout();
             router.replace("/");
           }}
-          className="rounded-2xl bg-white/80 px-6 py-4 shadow-md active:bg-white/90"
+          accessibilityRole="button"
+          accessibilityLabel="Sair da conta"
+          style={({ pressed }) => ({
+            backgroundColor: pressed
+              ? "rgba(255,255,255,0.9)"
+              : "rgba(255,255,255,0.8)",
+            borderRadius: 20,
+            paddingVertical: 16,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 2,
+          })}
         >
-          <Text className="text-center text-red-500">Sair da Conta</Text>
+          <Text style={{ color: "#ef4444", fontSize: 15 }}>Sair da conta</Text>
         </Pressable>
       </ScrollView>
     </GradientBackground>

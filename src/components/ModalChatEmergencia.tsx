@@ -49,6 +49,7 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
         texto: `Tudo bem ${nomeUsuario || "você"}? Eu estou aqui, do que você precisa?`,
         autor: "terapeuta",
         hora: horaAgora(),
+        timestamp: 0,
       };
       const userMsgs = mensagensEmergencia.filter((m) => m.autor === "usuario");
       setMensagensLocais([saudacao, ...userMsgs]);
@@ -89,6 +90,7 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
       texto: `Tudo bem ${nomeUsuario || "você"}? Eu estou aqui, do que você precisa?`,
       autor: "terapeuta",
       hora: horaAgora(),
+      timestamp: 0,
     };
     const userMsgs = mensagensEmergencia.filter((m) => m.autor === "usuario");
     setMensagensLocais([saudacao, ...userMsgs]);
