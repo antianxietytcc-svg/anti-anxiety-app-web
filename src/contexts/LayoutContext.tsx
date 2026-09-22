@@ -193,16 +193,14 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ---------------------------------------------------------------------------
-  async function login(
+ async function login(
     email: string,
     senha: string
   ): Promise<{ sucesso: boolean; erro?: string }> {
     const res = await loginUsuario(email, senha);
-    if (!res.sucesso || !res.perfil) return { sucesso: false, erro: res.erro };
-    setUsuarioLogado(res.perfil);
-    const msgs = await listarMensagensEmergencia(res.perfil.uid);
-    setMensagensEmergencia(msgs);
-    setOnline(res.perfil.uid).catch(() => {});
+    if (!res.sucesso) return { sucesso: false, erro: res.erro };
+    
+    // O useEffect com onAuthStateChanged já cuida de carregar o perfil e marcar online!
     return { sucesso: true };
   }
 

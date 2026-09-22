@@ -250,20 +250,34 @@ export async function cadastrarUsuario(
 // ---------------------------------------------------------------------------
 // Firebase Auth — Login
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Firebase Auth — Login (Otimizado sem chamada duplicada de perfil)
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Firebase Auth — Login
+// ---------------------------------------------------------------------------
 export async function loginUsuario(
   email: string,
   senha: string
 ): Promise<{ sucesso: boolean; perfil?: PerfilFirestore; erro?: string }> {
   try {
     const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), senha);
-    const uid = cred.user.uid;
-    const snap = await getDoc(doc(db, "usuarios", uid));
-    if (!snap.exists()) return { sucesso: false, erro: "Perfil não encontrado." };
-    const perfil = snap.data() as PerfilFirestore;
+    
+    // Buscamos o perfil para garantir o retorno completo sem quebrar chamadas antigas
+    const snap = await getDoc(doc(db, "usuarios", cred.user.uid));
+    const perfil = snap.exists() ? (snap.data() as PerfilFirestore) : undefined;
+
     return { sucesso: true, perfil };
   } catch (e: any) {
-    if (e?.code === "auth/invalid-credential" || e?.code === "auth/wrong-password" || e?.code === "auth/user-not-found") {
+    if (
+      e?.code === "auth/invalid-credential" || 
+      e?.code === "auth/wrong-password" || 
+      e?.code === "auth/user-not-found"
+    ) {
       return { sucesso: false, erro: "Email ou senha incorretos." };
+    }
+    if (e?.code === "auth/network-request-failed") {
+      return { sucesso: false, erro: "Falha de rede. Verifique sua conexão e tente novamente." };
     }
     return { sucesso: false, erro: e?.message ?? "Erro ao entrar." };
   }

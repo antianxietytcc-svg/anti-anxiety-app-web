@@ -1,12 +1,15 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
+import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// ---------------------------------------------------------------------------
-// Configuração do Firebase — credenciais via variáveis de ambiente (.env.local)
-// Não commitar valores reais. Usar EXPO_PUBLIC_ prefix para expo-router.
-// ---------------------------------------------------------------------------
+// Importamos a função diretamente de "firebase/auth".
+// Adicionamos a instrução ts-ignore logo antes da importação para 
+// resolver o falso-positivo da tipagem no VSCode/Expo.
+// @ts-ignore
+import { initializeAuth, getAuth, getReactNativePersistence } from "firebase/auth";
+
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? "",
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
@@ -16,9 +19,15 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? "",
 };
 
-// evita re-inicializar no hot-reload
+// Evita re-inicializar no hot-reload
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const db = getFirestore(app);
-export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+// Inicializa o Auth com a persistência adequada
+export const auth = Platform.OS === "web"
+  ? getAuth(app)
+  : initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
