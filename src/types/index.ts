@@ -4,7 +4,12 @@
  */
 
 // ---------------------------------------------------------------------------
-// Usuário
+// Tipo de conta
+// ---------------------------------------------------------------------------
+export type TipoConta = "paciente" | "psicologo";
+
+// ---------------------------------------------------------------------------
+// Usuário (perfil completo)
 // ---------------------------------------------------------------------------
 export interface Usuario {
   id_usuario: string;
@@ -12,6 +17,16 @@ export interface Usuario {
   email: string;
   telefone?: string;
   data_cadastro: string;
+  tipo_conta: TipoConta;
+  foto_url?: string;
+  // privacidade
+  ocultar_perfil?: boolean;
+  ocultar_foto?: boolean;
+  ocultar_nome?: boolean;
+  restringir_mensagens?: boolean;
+  // preferências
+  sonSelecionado?: string;
+  secretosDesbloqueados?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -27,6 +42,22 @@ export interface Psicologo {
   foto?: string;
   disponivel: boolean;
   especialidade: string;
+  // avaliações
+  media_avaliacao?: number;
+  qtd_avaliacoes?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Avaliação de psicólogo
+// ---------------------------------------------------------------------------
+export interface Avaliacao {
+  id_avaliacao: string;
+  id_psicologo: string;
+  id_usuario: string;
+  nome_usuario: string;
+  estrelas: number; // 1-5
+  comentario?: string;
+  data_avaliacao: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +91,8 @@ export interface Publicacao {
   id_usuario: string;
   nome_usuario: string;
   qtd_comentarios: number;
+  imagem_url?: string;   // suporte a imagem opcional
+  tipo_autor?: TipoConta;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,13 +121,17 @@ export interface Conversa {
 // ---------------------------------------------------------------------------
 // Mensagem
 // ---------------------------------------------------------------------------
+export type TipoMensagem = "texto" | "imagem" | "audio" | "video";
+
 export interface Mensagem {
   id_mensagem: string;
   conteudo: string;
+  tipo: TipoMensagem;
   data_envio: string;
   id_conversa: string;
   id_usuario: string;
   nome_usuario: string;
+  media_url?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +152,23 @@ export interface Agendamento {
   id_psicologo: string;
   nome_psicologo?: string;
   nome_usuario?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Nota (planilha do psicólogo)
+// ---------------------------------------------------------------------------
+export interface NotaPsicologo {
+  id_nota: string;
+  titulo: string;
+  conteudo: string;  // texto rico (markdown simples)
+  posicao_x: number;
+  posicao_y: number;
+  cor?: string;
+  id_psicologo: string;
+  data_criacao: string;
+  data_atualizacao: string;
+  // conexões para mapa mental
+  conexoes?: string[]; // ids de outras notas
 }
 
 // ---------------------------------------------------------------------------

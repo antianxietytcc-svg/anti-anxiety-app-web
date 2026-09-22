@@ -1,19 +1,24 @@
 import { createContext, useEffect, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "../lib/firebase";
 import {
-  cadastrarPaciente,
-  loginPaciente,
-  getPaciente,
-  atualizarPaciente,
+  getPerfil,
+  atualizarPerfil,
   adicionarMensagemEmergenciaFS,
   listarMensagensEmergencia,
   limparEmergenciaFS,
-  type PacienteFirestore,
+  loginUsuario,
+  cadastrarUsuario,
+  setOnline,
+  setOffline,
+  type PerfilFirestore,
   type MensagemEmergenciaFirestore,
 } from "../lib/firestore";
+import type { TipoConta } from "../types";
 
 // ---------------------------------------------------------------------------
-// localStorage — apenas para sessão e preferências locais
+// localStorage — apenas para preferências locais
 // ---------------------------------------------------------------------------
 const storage = {
   get: (key: string): string | null => {
@@ -31,14 +36,13 @@ const storage = {
 };
 
 // ---------------------------------------------------------------------------
-// Re-export do tipo de mensagem de emergência com o mesmo nome que o resto do
-// app usa (para não quebrar ModalChatEmergencia etc.)
+// Re-export de tipos para compatibilidade
 // ---------------------------------------------------------------------------
 export type MensagemEmergencia = MensagemEmergenciaFirestore;
-export type { PacienteFirestore as Usuario };
+export type { PerfilFirestore as Usuario };
 
 // ---------------------------------------------------------------------------
-// Types
+// Types de sons
 // ---------------------------------------------------------------------------
 export type NomeSom =
   | "Default"
@@ -72,18 +76,29 @@ export const SONS_SECRETOS: { id: NomeSom; label: string }[] = [
   { id: "Secret9", label: "Secreto 9" },
 ];
 
+// ---------------------------------------------------------------------------
+// Context Type
+// ---------------------------------------------------------------------------
 interface LayoutContextType {
   // auth
-  usuarioLogado: PacienteFirestore | null;
+  usuarioLogado: PerfilFirestore | null;
   estaCarregando: boolean;
   login: (email: string, senha: string) => Promise<{ sucesso: boolean; erro?: string }>;
-  cadastrar: (nome: string, email: string, senha: string) => Promise<{ sucesso: boolean; erro?: string }>;
-  logout: () => void;
+  cadastrar: (
+    nome: string,
+    email: string,
+    senha: string,
+    tipoConta: TipoConta,
+    extras?: { crm?: string; especialidade?: string }
+  ) => Promise<{ sucesso: boolean; erro?: string }>;
+  logout: () => Promise<void>;
   // compat aliases
   emailUsuario: string;
   nomeUsuario: string;
   setEmailUsuario: (email: string) => void;
   setNomeUsuario: (nome: string) => void;
+  // perfil
+  atualizarPerfilLocal: (campos: Partial<Omit<PerfilFirestore, "uid" | "email">>) => Promise<void>;
   // layout
   menuAberto: boolean;
   setMenuAberto: (aberto: boolean) => void;
@@ -99,9 +114,8 @@ interface LayoutContextType {
 }
 
 // ---------------------------------------------------------------------------
-// Storage keys (apenas sessão e preferências locais)
+// Storage keys
 // ---------------------------------------------------------------------------
-const KEY_SESSAO = "aa_sessao";
 const KEY_SOM = "aa_som_selecionado";
 const KEY_SECRETOS = "aa_secretos_desbloqueados";
 
@@ -113,11 +127,12 @@ export const LayoutContext = createContext<LayoutContextType>({
   estaCarregando: true,
   login: async () => ({ sucesso: false }),
   cadastrar: async () => ({ sucesso: false }),
-  logout: () => {},
+  logout: async () => {},
   emailUsuario: "",
   nomeUsuario: "",
   setEmailUsuario: () => {},
   setNomeUsuario: () => {},
+  atualizarPerfilLocal: async () => {},
   menuAberto: false,
   setMenuAberto: () => {},
   mensagensEmergencia: [],
@@ -133,44 +148,48 @@ export const LayoutContext = createContext<LayoutContextType>({
 // Provider
 // ---------------------------------------------------------------------------
 export function LayoutProvider({ children }: { children: ReactNode }) {
-  const [usuarioLogado, setUsuarioLogado] = useState<PacienteFirestore | null>(null);
+  const [usuarioLogado, setUsuarioLogado] = useState<PerfilFirestore | null>(null);
   const [estaCarregando, setEstaCarregando] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
   const [mensagensEmergencia, setMensagensEmergencia] = useState<MensagemEmergencia[]>([]);
 
-  // Preferências locais (não faz sentido sincronizar entre browsers)
   const [sonSelecionado, setSonSelecionadoState] = useState<NomeSom>("Default");
   const [secretosDesbloqueados, setSecretosDesbloqueados] = useState(false);
 
-  // Restore session on mount
+  // Restaurar preferências locais
   useEffect(() => {
-    async function restaurar() {
-      // Preferências locais
-      const somSalvo = storage.get(KEY_SOM) as NomeSom | null;
-      if (somSalvo) setSonSelecionadoState(somSalvo);
-      if (storage.get(KEY_SECRETOS) === "true") setSecretosDesbloqueados(true);
+    const somSalvo = storage.get(KEY_SOM) as NomeSom | null;
+    if (somSalvo) setSonSelecionadoState(somSalvo);
+    if (storage.get(KEY_SECRETOS) === "true") setSecretosDesbloqueados(true);
+  }, []);
 
-      // Sessão de paciente
-      const emailSessao = storage.get(KEY_SESSAO);
-      if (emailSessao) {
+  // Escuta o estado de autenticação do Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
         try {
-          const paciente = await getPaciente(emailSessao);
-          if (paciente) {
-            setUsuarioLogado(paciente);
-            const msgs = await listarMensagensEmergencia(emailSessao);
+          const perfil = await getPerfil(user.uid);
+          if (perfil) {
+            setUsuarioLogado(perfil);
+            // Carrega mensagens de emergência
+            const msgs = await listarMensagensEmergencia(user.uid);
             setMensagensEmergencia(msgs);
+            // Marca como online
+            setOnline(user.uid).catch(() => {});
           } else {
-            // usuário removido do Firestore — limpa sessão
-            storage.remove(KEY_SESSAO);
+            setUsuarioLogado(null);
           }
         } catch {
-          // Firebase ainda não configurado ou sem rede — não trava o app
+          setUsuarioLogado(null);
         }
+      } else {
+        setUsuarioLogado(null);
+        setMensagensEmergencia([]);
       }
-
       setEstaCarregando(false);
-    }
-    restaurar();
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -178,45 +197,58 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     email: string,
     senha: string
   ): Promise<{ sucesso: boolean; erro?: string }> {
-    const res = await loginPaciente(email, senha);
-    if (!res.sucesso || !res.paciente) return { sucesso: false, erro: res.erro };
-    setUsuarioLogado(res.paciente);
-    storage.set(KEY_SESSAO, res.paciente.email);
-    // carrega mensagens de emergência do Firebase
-    const msgs = await listarMensagensEmergencia(res.paciente.email);
+    const res = await loginUsuario(email, senha);
+    if (!res.sucesso || !res.perfil) return { sucesso: false, erro: res.erro };
+    setUsuarioLogado(res.perfil);
+    const msgs = await listarMensagensEmergencia(res.perfil.uid);
     setMensagensEmergencia(msgs);
+    setOnline(res.perfil.uid).catch(() => {});
     return { sucesso: true };
   }
 
   async function cadastrar(
     nome: string,
     email: string,
-    senha: string
+    senha: string,
+    tipoConta: TipoConta = "paciente",
+    extras: { crm?: string; especialidade?: string } = {}
   ): Promise<{ sucesso: boolean; erro?: string }> {
-    const res = await cadastrarPaciente(nome, email, senha);
-    if (!res.sucesso || !res.paciente) return { sucesso: false, erro: res.erro };
-    setUsuarioLogado(res.paciente);
-    storage.set(KEY_SESSAO, res.paciente.email);
+    const res = await cadastrarUsuario(nome, email, senha, tipoConta, extras);
+    if (!res.sucesso || !res.perfil) return { sucesso: false, erro: res.erro };
+    setUsuarioLogado(res.perfil);
     setMensagensEmergencia([]);
+    setOnline(res.perfil.uid).catch(() => {});
     return { sucesso: true };
   }
 
-  function logout() {
+  async function logout(): Promise<void> {
+    if (usuarioLogado) {
+      setOffline(usuarioLogado.uid).catch(() => {});
+    }
+    await signOut(auth);
     setUsuarioLogado(null);
     setMensagensEmergencia([]);
-    storage.remove(KEY_SESSAO);
+  }
+
+  // ---------------------------------------------------------------------------
+  async function atualizarPerfilLocal(
+    campos: Partial<Omit<PerfilFirestore, "uid" | "email">>
+  ): Promise<void> {
+    if (!usuarioLogado) return;
+    await atualizarPerfil(usuarioLogado.uid, campos);
+    setUsuarioLogado((prev) => prev ? { ...prev, ...campos } : prev);
   }
 
   // ---------------------------------------------------------------------------
   async function adicionarMensagemEmergencia(texto: string): Promise<void> {
     if (!usuarioLogado) return;
-    const nova = await adicionarMensagemEmergenciaFS(usuarioLogado.email, texto, "usuario");
+    const nova = await adicionarMensagemEmergenciaFS(usuarioLogado.uid, texto, "usuario");
     setMensagensEmergencia((prev) => [...prev, nova]);
   }
 
   async function limparMensagensEmergencia(): Promise<void> {
     if (!usuarioLogado) return;
-    await limparEmergenciaFS(usuarioLogado.email);
+    await limparEmergenciaFS(usuarioLogado.uid);
     setMensagensEmergencia([]);
   }
 
@@ -224,9 +256,8 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
   function setSonSelecionado(som: NomeSom) {
     setSonSelecionadoState(som);
     storage.set(KEY_SOM, som);
-    // persiste no perfil do Firestore também, sem bloquear a UI
     if (usuarioLogado) {
-      atualizarPaciente(usuarioLogado.email, { sonSelecionado: som }).catch(() => {});
+      atualizarPerfil(usuarioLogado.uid, { sonSelecionado: som }).catch(() => {});
     }
   }
 
@@ -234,7 +265,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     setSecretosDesbloqueados(true);
     storage.set(KEY_SECRETOS, "true");
     if (usuarioLogado) {
-      atualizarPaciente(usuarioLogado.email, { secretosDesbloqueados: true }).catch(() => {});
+      atualizarPerfil(usuarioLogado.uid, { secretosDesbloqueados: true }).catch(() => {});
     }
   }
 
@@ -251,6 +282,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
         nomeUsuario: usuarioLogado?.nome ?? "",
         setEmailUsuario: () => {},
         setNomeUsuario: () => {},
+        atualizarPerfilLocal,
         menuAberto,
         setMenuAberto,
         mensagensEmergencia,

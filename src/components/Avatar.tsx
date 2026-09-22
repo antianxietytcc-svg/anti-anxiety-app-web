@@ -1,13 +1,15 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Text } from "react-native";
+import { Image } from "expo-image";
+import { Text, View } from "react-native";
 import { GRADIENTS } from "../constants/theme";
 
 interface AvatarProps {
   nome: string;
   size?: number;
+  fotoUrl?: string;
 }
 
-export function getIniciais(nome: string) {
+export function getIniciais(nome: string): string {
   return nome
     .split(" ")
     .map((n) => n[0])
@@ -16,7 +18,26 @@ export function getIniciais(nome: string) {
     .toUpperCase();
 }
 
-export function Avatar({ nome, size = 48 }: AvatarProps) {
+export function Avatar({ nome, size = 48, fotoUrl }: AvatarProps) {
+  if (fotoUrl) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          overflow: "hidden",
+        }}
+      >
+        <Image
+          source={{ uri: fotoUrl }}
+          style={{ width: size, height: size }}
+          contentFit="cover"
+        />
+      </View>
+    );
+  }
+
   return (
     <LinearGradient
       colors={GRADIENTS.avatar}

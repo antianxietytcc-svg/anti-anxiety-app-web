@@ -14,9 +14,6 @@ import { ModalMensagem } from "../src/components/ModalMensagem";
 import { COLORS } from "../src/constants/theme";
 import { LayoutContext } from "../src/contexts/LayoutContext";
 
-// ---------------------------------------------------------------------------
-// Validação simples sem dependências externas
-// ---------------------------------------------------------------------------
 function validarEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -30,7 +27,6 @@ export default function Login() {
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
 
-  // Modal de demonstração (requisito acadêmico)
   const [modalDemo, setModalDemo] = useState(false);
   const [textoModal, setTextoModal] = useState("");
 
@@ -44,30 +40,16 @@ export default function Login() {
   async function handleLogin() {
     setErro("");
 
-    // Validação local
-    if (!email.trim()) {
-      setErro("O e-mail é obrigatório.");
-      return;
-    }
-    if (!validarEmail(email.trim())) {
-      setErro("Informe um e-mail válido.");
-      return;
-    }
-    if (!senha) {
-      setErro("A senha é obrigatória.");
-      return;
-    }
-    if (senha.length < 6) {
-      setErro("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
+    if (!email.trim()) { setErro("O e-mail é obrigatório."); return; }
+    if (!validarEmail(email.trim())) { setErro("Informe um e-mail válido."); return; }
+    if (!senha) { setErro("A senha é obrigatória."); return; }
+    if (senha.length < 6) { setErro("A senha deve ter pelo menos 6 caracteres."); return; }
 
     setCarregando(true);
     const resultado = await login(email.trim().toLowerCase(), senha);
     setCarregando(false);
 
     if (resultado.sucesso) {
-      // Requisito acadêmico: mostra dados submetidos via ModalMensagem antes de navegar
       setTextoModal(`E-mail: ${email.trim().toLowerCase()}\nLogin realizado com sucesso.`);
       setModalDemo(true);
     } else {
@@ -76,6 +58,17 @@ export default function Login() {
   }
 
   if (estaCarregando) return null;
+
+  const inputStyle = {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+    backgroundColor: "rgba(240,249,255,0.5)",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    color: COLORS.sky800,
+    fontSize: 15,
+  } as const;
 
   return (
     <GradientBackground>
@@ -119,11 +112,7 @@ export default function Login() {
           {/* Campos */}
           <View style={{ gap: 14 }}>
             <View>
-              <Text
-                style={{ fontSize: 13, color: COLORS.sky700, marginBottom: 6 }}
-              >
-                E-mail
-              </Text>
+              <Text style={{ fontSize: 13, color: COLORS.sky700, marginBottom: 6 }}>E-mail</Text>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
@@ -133,25 +122,12 @@ export default function Login() {
                 placeholder="seu@email.com"
                 placeholderTextColor={COLORS.sky300}
                 accessibilityLabel="Campo de e-mail"
-                style={{
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: "#bae6fd",
-                  backgroundColor: "rgba(240,249,255,0.5)",
-                  paddingHorizontal: 16,
-                  paddingVertical: 13,
-                  color: COLORS.sky800,
-                  fontSize: 15,
-                }}
+                style={inputStyle}
               />
             </View>
 
             <View>
-              <Text
-                style={{ fontSize: 13, color: COLORS.sky700, marginBottom: 6 }}
-              >
-                Senha
-              </Text>
+              <Text style={{ fontSize: 13, color: COLORS.sky700, marginBottom: 6 }}>Senha</Text>
               <TextInput
                 value={senha}
                 onChangeText={setSenha}
@@ -159,16 +135,7 @@ export default function Login() {
                 placeholder="••••••••"
                 placeholderTextColor={COLORS.sky300}
                 accessibilityLabel="Campo de senha"
-                style={{
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: "#bae6fd",
-                  backgroundColor: "rgba(240,249,255,0.5)",
-                  paddingHorizontal: 16,
-                  paddingVertical: 13,
-                  color: COLORS.sky800,
-                  fontSize: 15,
-                }}
+                style={inputStyle}
               />
             </View>
 
@@ -213,13 +180,13 @@ export default function Login() {
                 backgroundColor: pressed ? COLORS.sky50 : "transparent",
               })}
             >
-              <Text style={{ color: COLORS.sky600, fontSize: 15 }}>
-                Criar conta
-              </Text>
+              <Text style={{ color: COLORS.sky600, fontSize: 15 }}>Criar conta</Text>
             </Pressable>
           </View>
 
+          {/* Esqueceu a senha */}
           <Pressable
+            onPress={() => router.push("/esqueceu-senha")}
             style={{ marginTop: 16, alignItems: "center" }}
             accessibilityRole="button"
             accessibilityLabel="Esqueceu a senha?"
@@ -231,7 +198,6 @@ export default function Login() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Modal de demonstração (requisito acadêmico) */}
       <ModalMensagem
         exibir={modalDemo}
         titulo="Login efetuado!"

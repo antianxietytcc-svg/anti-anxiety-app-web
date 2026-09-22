@@ -12,6 +12,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="cadastro" />
+          <Stack.Screen name="esqueceu-senha" />
           <Stack.Screen name="sons" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="sobre" />

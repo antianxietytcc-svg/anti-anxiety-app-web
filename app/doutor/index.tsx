@@ -16,8 +16,8 @@ import { loginDoutor, cadastrarDoutor } from "../../src/lib/firestore";
 
 const KEY_DOUTOR_SESSAO = "aa_doutor_sessao";
 
-function salvarSessaoDoutor(email: string, nome: string) {
-  try { localStorage.setItem(KEY_DOUTOR_SESSAO, JSON.stringify({ email, nome })); } catch {}
+function salvarSessaoDoutor(email: string, nome: string, uid: string) {
+  try { localStorage.setItem(KEY_DOUTOR_SESSAO, JSON.stringify({ email, nome, uid })); } catch {}
 }
 
 export default function DoutorLogin() {
@@ -38,7 +38,7 @@ export default function DoutorLogin() {
     const res = await loginDoutor(email, senha);
     setCarregando(false);
     if (res.sucesso && res.doutor) {
-      salvarSessaoDoutor(res.doutor.email, res.doutor.nome);
+      salvarSessaoDoutor(res.doutor.email, res.doutor.nome, res.doutor.uid);
       router.replace("/doutor/sala");
     } else {
       setErro(res.erro ?? "Erro ao entrar.");
@@ -53,7 +53,11 @@ export default function DoutorLogin() {
     const res = await cadastrarDoutor(nome, email, crm, senha);
     setCarregando(false);
     if (res.sucesso) {
-      salvarSessaoDoutor(email.trim().toLowerCase(), nome.trim());
+      // buscar uid após cadastro
+      const { loginDoutor: ld } = await import("../../src/lib/firestore");
+      const loginRes = await ld(email.trim().toLowerCase(), senha);
+      const uid = loginRes.doutor?.uid ?? "";
+      salvarSessaoDoutor(email.trim().toLowerCase(), nome.trim(), uid);
       router.replace("/doutor/sala");
     } else {
       setErro(res.erro ?? "Erro ao cadastrar.");

@@ -26,27 +26,71 @@ function horaAgora() {
   return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+// ---------------------------------------------------------------------------
+// Respostas automáticas da Dra. Sofia (bot simples de suporte)
+// ---------------------------------------------------------------------------
+const RESPOSTAS_BOT: { palavras: string[]; resposta: string }[] = [
+  {
+    palavras: ["ansiedade", "ansioso", "ansiosa", "crise", "pânico", "panic", "ataque"],
+    resposta: "Entendo, isso pode ser muito assustador. Vamos respirar juntos? Inspire profundamente por 4 segundos, segure por 4, e expire por 4. Tente algumas vezes. Eu estou aqui com você. 💙",
+  },
+  {
+    palavras: ["triste", "tristeza", "choro", "chorando", "mal", "péssimo", "péssima"],
+    resposta: "Sinto muito que esteja se sentindo assim. É completamente válido sentir essas emoções. Você não está sozinho(a). Quer me contar um pouco mais sobre o que está acontecendo?",
+  },
+  {
+    palavras: ["sozinho", "sozinha", "abandonado", "abandonada", "ninguém", "isolado"],
+    resposta: "Você não está sozinho(a). Estou aqui, e há psicólogos disponíveis para te apoiar. Gostaria que eu te conectasse com um profissional agora disponível?",
+  },
+  {
+    palavras: ["psicologo", "psicólogo", "ajuda", "profissional", "terapeuta", "sessão", "sessao"],
+    resposta: "Posso te ajudar a encontrar um psicólogo disponível. Acesse a aba 'Psicólogos' no menu principal para ver os profissionais e agendar uma consulta. Deseja que eu te direcione?",
+  },
+  {
+    palavras: ["suicidio", "suicídio", "morrer", "morte", "matar", "matar-me", "acabar"],
+    resposta: "Estou aqui e me importo com você. Em caso de emergência, ligue imediatamente para o CVV: 188 (24h) ou acesse cvv.org.br. Você é importante. Por favor, procure ajuda agora. 💙",
+  },
+  {
+    palavras: ["obrigado", "obrigada", "valeu", "thanks", "grato", "grata"],
+    resposta: "Fico feliz em poder estar aqui para você! Se precisar de mais apoio, não hesite. Cuide-se! 💙",
+  },
+  {
+    palavras: ["tudo bem", "bem", "melhor", "ok", "certo", "tranquilo"],
+    resposta: "Que bom ouvir isso! Continue se cuidando. Lembre-se que você pode contar com a nossa rede de apoio sempre que precisar. 😊",
+  },
+];
+
+function gerarRespostaSofia(mensagemUsuario: string): string | null {
+  const msg = mensagemUsuario.toLowerCase();
+  for (const item of RESPOSTAS_BOT) {
+    if (item.palavras.some((p) => msg.includes(p))) {
+      return item.resposta;
+    }
+  }
+  // Resposta padrão se não há match
+  return "Estou te ouvindo. Pode falar mais sobre o que está sentindo? Estou aqui para apoiar você. Se precisar de ajuda profissional imediata, acesse a aba de Psicólogos. 💙";
+}
+
 export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
   const { nomeUsuario, mensagensEmergencia, adicionarMensagemEmergencia } =
     useContext(LayoutContext);
 
   const [texto, setTexto] = useState("");
   const flatRef = useRef<FlatList>(null);
+  const [respondendoBot, setRespondendoBot] = useState(false);
 
   // Animation values
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const slideY = useRef(new Animated.Value(60)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
 
-  // Mensagem automática do terapeuta (apenas quando ainda não há nenhuma)
   const [mensagensLocais, setMensagensLocais] = useState<MensagemEmergencia[]>([]);
 
   useEffect(() => {
     if (visivel) {
-      // Build local list: terapeuta greeting + persisted user messages
       const saudacao: MensagemEmergencia = {
         id: "terapeuta-0",
-        texto: `Tudo bem ${nomeUsuario || "você"}? Eu estou aqui, do que você precisa?`,
+        texto: `Olá, ${nomeUsuario || "você"}! 💙 Eu sou a Sofia, sua assistente de apoio emocional. Como você está se sentindo agora?`,
         autor: "terapeuta",
         hora: horaAgora(),
         timestamp: 0,
@@ -54,7 +98,6 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
       const userMsgs = mensagensEmergencia.filter((m) => m.autor === "usuario");
       setMensagensLocais([saudacao, ...userMsgs]);
 
-      // Enter animation
       Animated.parallel([
         Animated.timing(backdropOpacity, {
           toValue: 1,
@@ -75,19 +118,17 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
         }),
       ]).start();
     } else {
-      // Exit animation (instant reset for next open)
       backdropOpacity.setValue(0);
       slideY.setValue(60);
       scaleAnim.setValue(0.92);
     }
   }, [visivel]);
 
-  // Keep local list in sync whenever persisted messages change
   useEffect(() => {
     if (!visivel) return;
     const saudacao: MensagemEmergencia = {
       id: "terapeuta-0",
-      texto: `Tudo bem ${nomeUsuario || "você"}? Eu estou aqui, do que você precisa?`,
+      texto: `Olá, ${nomeUsuario || "você"}! 💙 Eu sou a Sofia, sua assistente de apoio emocional. Como você está se sentindo agora?`,
       autor: "terapeuta",
       hora: horaAgora(),
       timestamp: 0,
@@ -96,18 +137,35 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
     setMensagensLocais([saudacao, ...userMsgs]);
   }, [mensagensEmergencia]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     if (mensagensLocais.length > 0) {
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
     }
   }, [mensagensLocais]);
 
-  function enviar() {
+  async function enviar() {
     const t = texto.trim();
-    if (!t) return;
+    if (!t || respondendoBot) return;
     setTexto("");
-    adicionarMensagemEmergencia(t);
+
+    // Salva mensagem do usuário
+    await adicionarMensagemEmergencia(t);
+
+    // Gera resposta automática da Sofia com delay realista
+    setRespondendoBot(true);
+    const respostaSofia = gerarRespostaSofia(t);
+    setTimeout(async () => {
+      // Adiciona a mensagem da Sofia como "terapeuta" (localmente para o bot)
+      const msgBot: MensagemEmergencia = {
+        id: `sofia-${Date.now()}`,
+        texto: respostaSofia ?? "Estou aqui para você. 💙",
+        autor: "terapeuta",
+        hora: horaAgora(),
+        timestamp: Date.now(),
+      };
+      setMensagensLocais((prev) => [...prev, msgBot]);
+      setRespondendoBot(false);
+    }, 1200);
   }
 
   if (!visivel) return null;
@@ -128,7 +186,6 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
           opacity: backdropOpacity,
         }}
       >
-        {/* Toque no backdrop fecha */}
         <Pressable
           style={{ position: "absolute", inset: 0 } as any}
           onPress={aoFechar}
@@ -158,7 +215,6 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              {/* Avatar terapeuta */}
               <View
                 style={{
                   width: 40,
@@ -175,7 +231,10 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
                 <Text style={{ color: COLORS.sky800, fontSize: 15, fontWeight: "600" }}>
                   {NOME_TERAPEUTA}
                 </Text>
-                <Text style={{ color: COLORS.sky500, fontSize: 12 }}>Terapeuta • online</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#22c55e" }} />
+                  <Text style={{ color: "#22c55e", fontSize: 12 }}>Assistente de apoio • online</Text>
+                </View>
               </View>
             </View>
 
@@ -194,6 +253,13 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
             </Pressable>
           </View>
 
+          {/* Aviso */}
+          <View style={{ backgroundColor: "#fffbeb", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#fde68a" }}>
+            <Text style={{ fontSize: 11, color: "#92400e", textAlign: "center" }}>
+              🤖 Este é um assistente automatizado. Para suporte profissional, acesse a aba Psicólogos.
+            </Text>
+          </View>
+
           {/* Messages */}
           <FlatList
             ref={flatRef}
@@ -209,8 +275,7 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
               >
                 <View
                   style={{
-                    backgroundColor:
-                      item.autor === "usuario" ? COLORS.sky400 : "#fff",
+                    backgroundColor: item.autor === "usuario" ? COLORS.sky400 : "#fff",
                     borderRadius: 18,
                     borderBottomRightRadius: item.autor === "usuario" ? 4 : 18,
                     borderBottomLeftRadius: item.autor === "terapeuta" ? 4 : 18,
@@ -247,10 +312,17 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
             )}
           />
 
+          {/* Indicador "Sofia está digitando..." */}
+          {respondendoBot && (
+            <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
+              <Text style={{ fontSize: 12, color: COLORS.sky500, fontStyle: "italic" }}>
+                Sofia está digitando...
+              </Text>
+            </View>
+          )}
+
           {/* Input */}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-          >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <View
               style={{
                 flexDirection: "row",
@@ -284,6 +356,7 @@ export function ModalChatEmergencia({ visivel, aoFechar }: Props) {
               />
               <Pressable
                 onPress={enviar}
+                disabled={respondendoBot}
                 style={{
                   width: 44,
                   height: 44,

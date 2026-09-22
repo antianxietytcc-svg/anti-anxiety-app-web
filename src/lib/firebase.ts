@@ -1,9 +1,11 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 
 // ---------------------------------------------------------------------------
-// CONFIGURE AQUI: vá em console.firebase.google.com
-// → Seu projeto → Configurações → Adicionar app (web) → copie o firebaseConfig
+// Configuração do Firebase — credenciais via variáveis de ambiente (.env.local)
+// Não commitar valores reais. Usar EXPO_PUBLIC_ prefix para expo-router.
 // ---------------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -18,3 +20,5 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const storage = getStorage(app);
