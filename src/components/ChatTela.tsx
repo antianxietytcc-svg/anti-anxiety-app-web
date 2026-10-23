@@ -7,6 +7,7 @@
  *   - Suporte a envio de imagens, áudios e vídeos
  */
 import { useEffect, useRef, useState } from "react";
+import type React from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -38,6 +39,7 @@ interface Props {
   nomeOutro: string;
   uidOutro?: string;
   onVoltar?: () => void;
+  headerExtra?: React.ReactNode;
 }
 
 // Formata o timestamp para data legível pt-BR
@@ -56,7 +58,7 @@ function isMesmaData(a: number, b: number): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString();
 }
 
-export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, onVoltar }: Props) {
+export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, onVoltar, headerExtra }: Props) {
   const router = useRouter();
   const [mensagens, setMensagens] = useState<MensagemFirestore[]>([]);
   const [texto, setTexto] = useState("");
@@ -132,7 +134,7 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
         <Pressable onPress={onVoltar ?? (() => router.back())}>
           <ChevronLeft size={26} color={COLORS.sky600} strokeWidth={1.5} />
         </Pressable>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 16, color: COLORS.sky800, fontWeight: "600" }}>
             {nomeOutro}
           </Text>
@@ -146,10 +148,11 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
               }}
             />
             <Text style={{ fontSize: 12, color: uidOutro ? (online ? "#22c55e" : COLORS.sky500) : COLORS.sky500 }}>
-              {uidOutro ? (online ? "online" : "offline") : "online"}
+              {uidOutro ? (online ? "online" : "offline") : "–"}
             </Text>
           </View>
         </View>
+        {headerExtra}
       </View>
 
       {/* Messages */}

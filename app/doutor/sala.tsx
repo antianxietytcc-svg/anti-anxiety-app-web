@@ -1,6 +1,6 @@
 /**
  * Sala do Psicólogo — interface unificada com abas:
- * Pacientes | Feed | Agendamentos | Perfil
+ * Pacientes | Feed | Agendamentos | Notas | Perfil
  */
 import { useEffect, useState } from "react";
 import {
@@ -9,6 +9,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   Text,
   TextInput,
   View,
@@ -25,6 +26,9 @@ import {
   X,
   Clock,
   Image as ImageIcon,
+  FileText,
+  Save,
+  Trash2,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
@@ -40,6 +44,8 @@ import {
   atualizarStatusAgendamento,
   getPerfil,
   atualizarPerfil,
+  contarChatsPsicologo,
+  uploadFotoPerfilStorage,
   type PostFirestore,
   type AgendamentoFirestore,
   type PerfilFirestore,
@@ -54,7 +60,7 @@ function lerSessaoDoutor(): { email: string; nome: string; uid: string } | null 
   } catch { return null; }
 }
 
-type AbaDoutor = "pacientes" | "feed" | "agendamentos" | "perfil";
+type AbaDoutor = "pacientes" | "feed" | "agendamentos" | "notas" | "perfil";
 
 const STATUS_CORES: Record<AgendamentoFirestore["status"], string> = {
   pendente: "#f59e0b",
@@ -337,6 +343,211 @@ function AbaAgendamentos({ sessao }: { sessao: { email: string; nome: string; ui
 }
 
 // ---------------------------------------------------------------------------
+// Aba Notas — editor de texto rico local com exportação
+// ---------------------------------------------------------------------------
+interface Nota {
+  id: string;
+  titulo: string;
+  conteudo: string;
+  negrito: boolean;
+  destacado: boolean;
+  corDestaque: string;
+  criado: number;
+  atualizado: number;
+}
+
+const CORES_DESTAQUE = ["#fef08a", "#bbf7d0", "#bae6fd", "#fecdd3", "#e9d5ff"];
+
+function AbaNotas({ sessao }: { sessao: { email: string; nome: string; uid: string } }) {
+  const KEY_NOTAS = `aa_notas_${sessao.uid}`;
+  const [notas, setNotas] = useState<Nota[]>([]);
+  const [notaAtual, setNotaAtual] = useState<Nota | null>(null);
+  const [editandoTitulo, setEditandoTitulo] = useState(false);
+
+  // Carrega notas do localStorage (armazenamento local da máquina do psicólogo)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(KEY_NOTAS);
+      if (raw) setNotas(JSON.parse(raw));
+    } catch {}
+  }, [sessao.uid]);
+
+  function salvarNotas(lista: Nota[]) {
+    setNotas(lista);
+    try { localStorage.setItem(KEY_NOTAS, JSON.stringify(lista)); } catch {}
+  }
+
+  function novaNota() {
+    const nova: Nota = {
+      id: Date.now().toString(),
+      titulo: "Nova nota",
+      conteudo: "",
+      negrito: false,
+      destacado: false,
+      corDestaque: "#fef08a",
+      criado: Date.now(),
+      atualizado: Date.now(),
+    };
+    const lista = [nova, ...notas];
+    salvarNotas(lista);
+    setNotaAtual(nova);
+  }
+
+  function salvarConteudo(nota: Nota, novoConteudo: string) {
+    const atualizada = { ...nota, conteudo: novoConteudo, atualizado: Date.now() };
+    setNotaAtual(atualizada);
+    const lista = notas.map((n) => (n.id === nota.id ? atualizada : n));
+    salvarNotas(lista);
+  }
+
+  function salvarTitulo(nota: Nota, novoTitulo: string) {
+    const atualizada = { ...nota, titulo: novoTitulo, atualizado: Date.now() };
+    setNotaAtual(atualizada);
+    const lista = notas.map((n) => (n.id === nota.id ? atualizada : n));
+    salvarNotas(lista);
+    setEditandoTitulo(false);
+  }
+
+  function toggleNegrito(nota: Nota) {
+    const atualizada = { ...nota, negrito: !nota.negrito, atualizado: Date.now() };
+    setNotaAtual(atualizada);
+    const lista = notas.map((n) => (n.id === nota.id ? atualizada : n));
+    salvarNotas(lista);
+  }
+
+  function toggleDestaque(nota: Nota, cor: string) {
+    const jaDestacado = nota.destacado && nota.corDestaque === cor;
+    const atualizada = { ...nota, destacado: !jaDestacado, corDestaque: cor, atualizado: Date.now() };
+    setNotaAtual(atualizada);
+    const lista = notas.map((n) => (n.id === nota.id ? atualizada : n));
+    salvarNotas(lista);
+  }
+
+  function deletarNota(id: string) {
+    const lista = notas.filter((n) => n.id !== id);
+    salvarNotas(lista);
+    if (notaAtual?.id === id) setNotaAtual(null);
+  }
+
+  async function exportarNota(nota: Nota) {
+    const texto = `${nota.titulo}\n${"=".repeat(nota.titulo.length)}\n\n${nota.conteudo}\n\n— Exportado por Anti-Anxiety em ${new Date(nota.atualizado).toLocaleDateString("pt-BR")}`;
+    try {
+      await Share.share({ message: texto, title: nota.titulo });
+    } catch {}
+  }
+
+  if (notaAtual) {
+    return (
+      <View style={{ flex: 1, backgroundColor: notaAtual.destacado ? notaAtual.corDestaque : "#fff" }}>
+        {/* Header da nota */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "rgba(255,255,255,0.9)", borderBottomWidth: 1, borderBottomColor: "#bae6fd" }}>
+          <Pressable onPress={() => setNotaAtual(null)} style={{ padding: 4 }}>
+            <X size={20} color={COLORS.sky500} strokeWidth={1.5} />
+          </Pressable>
+          {editandoTitulo ? (
+            <TextInput
+              value={notaAtual.titulo}
+              onChangeText={(t) => setNotaAtual({ ...notaAtual, titulo: t })}
+              onBlur={() => salvarTitulo(notaAtual, notaAtual.titulo)}
+              autoFocus
+              style={{ flex: 1, fontSize: 16, color: COLORS.sky800, borderBottomWidth: 1, borderBottomColor: "#bae6fd", paddingVertical: 2 }}
+            />
+          ) : (
+            <Pressable onPress={() => setEditandoTitulo(true)} style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, color: COLORS.sky800 }}>{notaAtual.titulo}</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={() => exportarNota(notaAtual)} style={{ padding: 4 }}>
+            <Save size={20} color={COLORS.sky500} strokeWidth={1.5} />
+          </Pressable>
+          <Pressable onPress={() => deletarNota(notaAtual.id)} style={{ padding: 4 }}>
+            <Trash2 size={20} color="#ef4444" strokeWidth={1.5} />
+          </Pressable>
+        </View>
+
+        {/* Barra de formatação */}
+        <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#f0f9ff", borderBottomWidth: 1, borderBottomColor: "#e0f2fe" }}>
+          <Pressable
+            onPress={() => toggleNegrito(notaAtual)}
+            style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: notaAtual.negrito ? COLORS.sky400 : "#e0f2fe" }}
+          >
+            <Text style={{ fontWeight: "bold", color: notaAtual.negrito ? "#fff" : COLORS.sky700, fontSize: 13 }}>N</Text>
+          </Pressable>
+          {CORES_DESTAQUE.map((cor) => (
+            <Pressable
+              key={cor}
+              onPress={() => toggleDestaque(notaAtual, cor)}
+              style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: cor, borderWidth: notaAtual.destacado && notaAtual.corDestaque === cor ? 2 : 0, borderColor: COLORS.sky600 }}
+            />
+          ))}
+        </View>
+
+        {/* Área de texto */}
+        <TextInput
+          value={notaAtual.conteudo}
+          onChangeText={(t) => salvarConteudo(notaAtual, t)}
+          multiline
+          textAlignVertical="top"
+          placeholder="Digite aqui suas anotações..."
+          placeholderTextColor={COLORS.sky300}
+          style={{
+            flex: 1,
+            padding: 20,
+            fontSize: 15,
+            color: COLORS.sky800,
+            fontWeight: notaAtual.negrito ? "bold" : "normal",
+            backgroundColor: notaAtual.destacado ? notaAtual.corDestaque : "transparent",
+            lineHeight: 24,
+          }}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={notas}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
+        ListHeaderComponent={
+          <Pressable
+            onPress={novaNota}
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: COLORS.sky400, borderRadius: 14, paddingVertical: 13, marginBottom: 4 }}
+          >
+            <Plus size={18} color="#fff" strokeWidth={2} />
+            <Text style={{ color: "#fff", fontSize: 14 }}>Nova nota</Text>
+          </Pressable>
+        }
+        ListEmptyComponent={
+          <View style={{ alignItems: "center", paddingTop: 60 }}>
+            <FileText size={48} color={COLORS.sky300} strokeWidth={1} />
+            <Text style={{ color: COLORS.sky400, marginTop: 16, textAlign: "center", fontSize: 14 }}>
+              Nenhuma nota ainda.{"\n"}Toque em "Nova nota" para começar.
+            </Text>
+          </View>
+        }
+        renderItem={({ item }) => (
+          <Pressable
+            onPress={() => setNotaAtual(item)}
+            style={{ backgroundColor: item.destacado ? item.corDestaque : "#fff", borderRadius: 14, padding: 16, gap: 6, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 }}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ fontSize: 15, color: COLORS.sky800, fontWeight: item.negrito ? "bold" : "normal", flex: 1 }} numberOfLines={1}>{item.titulo}</Text>
+              <Pressable onPress={() => deletarNota(item.id)} style={{ padding: 4 }}>
+                <Trash2 size={16} color="#ef4444" strokeWidth={1.5} />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 13, color: COLORS.sky600, fontWeight: item.negrito ? "bold" : "normal" }} numberOfLines={2}>{item.conteudo || "Nota vazia"}</Text>
+            <Text style={{ fontSize: 11, color: COLORS.sky400 }}>{new Date(item.atualizado).toLocaleDateString("pt-BR")}</Text>
+          </Pressable>
+        )}
+      />
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Aba Perfil do Psicólogo
 // ---------------------------------------------------------------------------
 function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; uid: string }; aoSair: () => void }) {
@@ -345,6 +556,9 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
   const [novoNome, setNovoNome] = useState("");
   const [editandoDescricao, setEditandoDescricao] = useState(false);
   const [novaDescricao, setNovaDescricao] = useState("");
+  const [editandoEspecialidade, setEditandoEspecialidade] = useState(false);
+  const [novaEspecialidade, setNovaEspecialidade] = useState("");
+  const [qtdPacientes, setQtdPacientes] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -354,8 +568,10 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
           setPerfil(p);
           setNovoNome(p.nome);
           setNovaDescricao(p.descricao ?? "");
+          setNovaEspecialidade(p.especialidade ?? "");
         }
       });
+      contarChatsPsicologo(sessao.email).then(setQtdPacientes);
     }
   }, [sessao.uid]);
 
@@ -377,12 +593,27 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
     setSalvando(false);
   }
 
+  async function salvarEspecialidade() {
+    if (!sessao.uid) return;
+    setSalvando(true);
+    await atualizarPerfil(sessao.uid, { especialidade: novaEspecialidade.trim() });
+    setPerfil((prev) => prev ? { ...prev, especialidade: novaEspecialidade.trim() } : prev);
+    setEditandoEspecialidade(false);
+    setSalvando(false);
+  }
+
   async function escolherFoto() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
       setSalvando(true);
-      await atualizarPerfil(sessao.uid, { foto_url: result.assets[0].uri });
-      setPerfil((prev) => prev ? { ...prev, foto_url: result.assets[0].uri } : prev);
+      try {
+        const url = await uploadFotoPerfilStorage(sessao.uid, result.assets[0].uri);
+        await atualizarPerfil(sessao.uid, { foto_url: url });
+        setPerfil((prev) => prev ? { ...prev, foto_url: url } : prev);
+      } catch {
+        await atualizarPerfil(sessao.uid, { foto_url: result.assets[0].uri });
+        setPerfil((prev) => prev ? { ...prev, foto_url: result.assets[0].uri } : prev);
+      }
       setSalvando(false);
     }
   }
@@ -394,7 +625,11 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
       {/* Foto */}
       <View style={{ alignItems: "center", gap: 8 }}>
         <Pressable onPress={escolherFoto}>
-          {perfil.foto_url ? (
+          {salvando ? (
+            <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: COLORS.sky100, alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator color={COLORS.sky400} />
+            </View>
+          ) : perfil.foto_url ? (
             <Image source={{ uri: perfil.foto_url }} style={{ width: 90, height: 90, borderRadius: 45 }} contentFit="cover" />
           ) : (
             <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: COLORS.sky300, alignItems: "center", justifyContent: "center" }}>
@@ -412,7 +647,7 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TextInput value={novoNome} onChangeText={setNovoNome} style={{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: "#bae6fd", backgroundColor: "#f0f9ff", paddingHorizontal: 12, paddingVertical: 8, color: COLORS.sky800 }} />
             <Pressable onPress={salvarNome} style={{ backgroundColor: COLORS.sky400, borderRadius: 10, paddingHorizontal: 14, justifyContent: "center" }}>
-              <Text style={{ color: "#fff" }}>OK</Text>
+              {salvando ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff" }}>OK</Text>}
             </Pressable>
           </View>
         ) : (
@@ -429,8 +664,25 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
           <Text style={{ fontSize: 14, color: COLORS.sky800 }}>{perfil.crm ?? "–"}</Text>
         </View>
         <View>
-          <Text style={{ fontSize: 12, color: COLORS.sky500 }}>Especialidade</Text>
-          <Text style={{ fontSize: 14, color: COLORS.sky800 }}>{perfil.especialidade ?? "–"}</Text>
+          <Text style={{ fontSize: 12, color: COLORS.sky500, marginBottom: 4 }}>Especialidade</Text>
+          {editandoEspecialidade ? (
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TextInput value={novaEspecialidade} onChangeText={setNovaEspecialidade} placeholder="Ex: Psicologia Clínica" placeholderTextColor={COLORS.sky300} style={{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: "#bae6fd", backgroundColor: "#f0f9ff", paddingHorizontal: 12, paddingVertical: 8, color: COLORS.sky800 }} />
+              <Pressable onPress={salvarEspecialidade} style={{ backgroundColor: COLORS.sky400, borderRadius: 10, paddingHorizontal: 14, justifyContent: "center" }}>
+                {salvando ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff" }}>OK</Text>}
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={() => setEditandoEspecialidade(true)}>
+              <Text style={{ fontSize: 14, color: perfil.especialidade ? COLORS.sky800 : COLORS.sky300 }}>
+                {perfil.especialidade || "Toque para adicionar especialidade..."}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+        <View>
+          <Text style={{ fontSize: 12, color: COLORS.sky500 }}>Pacientes ativos</Text>
+          <Text style={{ fontSize: 14, color: COLORS.sky800 }}>{qtdPacientes !== null ? qtdPacientes : "–"}</Text>
         </View>
         <View>
           <Text style={{ fontSize: 12, color: COLORS.sky500 }}>Avaliação</Text>
@@ -445,7 +697,7 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
           <View style={{ gap: 8 }}>
             <TextInput value={novaDescricao} onChangeText={setNovaDescricao} multiline numberOfLines={3} style={{ borderRadius: 10, borderWidth: 1, borderColor: "#bae6fd", backgroundColor: "#f0f9ff", paddingHorizontal: 12, paddingVertical: 8, color: COLORS.sky800, minHeight: 80, textAlignVertical: "top" }} />
             <Pressable onPress={salvarDescricao} style={{ backgroundColor: COLORS.sky400, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
-              <Text style={{ color: "#fff" }}>Salvar</Text>
+              {salvando ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff" }}>Salvar</Text>}
             </Pressable>
           </View>
         ) : (
@@ -490,6 +742,7 @@ export default function DoutorSala() {
     { key: "pacientes", label: "Pacientes", Icon: Users },
     { key: "feed", label: "Feed", Icon: MessageCircle },
     { key: "agendamentos", label: "Agenda", Icon: CalendarDays },
+    { key: "notas", label: "Notas", Icon: FileText },
     { key: "perfil", label: "Perfil", Icon: User },
   ];
 
@@ -549,6 +802,7 @@ export default function DoutorSala() {
         {aba === "pacientes" && <AbaPacientes sessao={sessao} />}
         {aba === "feed" && <AbaFeed sessao={sessao} />}
         {aba === "agendamentos" && <AbaAgendamentos sessao={sessao} />}
+        {aba === "notas" && <AbaNotas sessao={sessao} />}
         {aba === "perfil" && <AbaPerfil sessao={sessao} aoSair={sair} />}
       </View>
     </GradientBackground>

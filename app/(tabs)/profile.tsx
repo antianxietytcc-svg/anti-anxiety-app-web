@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
-  Settings,
   Calendar,
   Heart,
   MessageCircle,
@@ -30,7 +29,7 @@ import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
 import { getIniciais } from "../../src/components/Avatar";
-import { alterarSenha, alterarEmail } from "../../src/lib/firestore";
+import { alterarSenha, alterarEmail, uploadFotoPerfilStorage } from "../../src/lib/firestore";
 
 // ---------------------------------------------------------------------------
 // Componente de campo de edição inline
@@ -395,10 +394,14 @@ export default function Profile() {
       quality: 0.7,
       base64: false,
     });
-    if (!result.canceled && result.assets[0]) {
+    if (!result.canceled && result.assets[0] && usuarioLogado) {
       setSalvandoFoto(true);
-      // Para o protótipo: salva a URI local. Em produção, faria upload para Firebase Storage.
-      await atualizarPerfilLocal({ foto_url: result.assets[0].uri });
+      try {
+        const url = await uploadFotoPerfilStorage(usuarioLogado.uid, result.assets[0].uri);
+        await atualizarPerfilLocal({ foto_url: url });
+      } catch {
+        await atualizarPerfilLocal({ foto_url: result.assets[0].uri });
+      }
       setSalvandoFoto(false);
     }
   }
@@ -431,19 +434,12 @@ export default function Profile() {
         }}
       >
         <Text style={{ fontSize: 22, color: COLORS.sky700 }}>Perfil</Text>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <Pressable
-            onPress={() => setModalPrivacidade(true)}
-            accessibilityLabel="Privacidade"
-          >
-            <EyeOff size={22} color={COLORS.sky600} strokeWidth={1.5} />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Configurações"
-          >
-            <Settings size={24} color={COLORS.sky600} strokeWidth={1.5} />
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => setModalPrivacidade(true)}
+          accessibilityLabel="Privacidade"
+        >
+          <EyeOff size={22} color={COLORS.sky600} strokeWidth={1.5} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 16 }}>

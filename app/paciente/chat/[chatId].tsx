@@ -1,3 +1,6 @@
+/**
+ * Chat do paciente — determina o nome do outro usuário com base no chatId e email atual.
+ */
 import { useLocalSearchParams } from "expo-router";
 import { ChatTela } from "../../../src/components/ChatTela";
 import { getDoc, doc } from "firebase/firestore";
@@ -12,18 +15,27 @@ export default function PacienteChatPage() {
   const { usuarioLogado } = useContext(LayoutContext);
 
   const [nomeOutro, setNomeOutro] = useState("");
+  const [uidOutro, setUidOutro] = useState<string | undefined>();
   const [pronto, setPronto] = useState(false);
 
   useEffect(() => {
-    if (!chatId) return;
-    getDoc(doc(db, "chats", chatId)).then((snap) => {
+    if (!chatId || !usuarioLogado) return;
+    getDoc(doc(db, "chats", chatId)).then(async (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setNomeOutro(data.doutorNome ?? "Doutor");
+        const emailAtual = usuarioLogado.email.trim().toLowerCase();
+        // Determina o outro participante com base no email atual
+        if (data.psicoEmail === emailAtual || data.doutorEmail === emailAtual) {
+          // Usuário atual é o psicólogo → outro é o paciente
+          setNomeOutro(data.pacienteNome ?? "Paciente");
+        } else {
+          // Usuário atual é o paciente → outro é o psicólogo
+          setNomeOutro(data.psicoNome ?? data.doutorNome ?? "Psicólogo");
+        }
       }
       setPronto(true);
     });
-  }, [chatId]);
+  }, [chatId, usuarioLogado]);
 
   if (!pronto || !usuarioLogado) {
     return (
@@ -39,6 +51,7 @@ export default function PacienteChatPage() {
       emailAtual={usuarioLogado.email}
       nomeAtual={usuarioLogado.nome}
       nomeOutro={nomeOutro}
+      uidOutro={uidOutro}
     />
   );
 }

@@ -4,18 +4,19 @@
  * Suporte a imagens nas publicações.
  * Psicólogos e pacientes podem publicar.
  */
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
   Modal,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { MessageCircle, Plus, X, Image as ImageIcon } from "lucide-react-native";
+import { MessageCircle, Plus, X, Image as ImageIcon, Star } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { Avatar } from "../../src/components/Avatar";
@@ -26,8 +27,11 @@ import {
   criarPost,
   ouvirComentariosPost,
   adicionarComentarioPost,
+  getPerfil,
+  avaliarPsicologo,
   type PostFirestore,
   type ComentarioFirestore,
+  type PerfilFirestore,
 } from "../../src/lib/firestore";
 import { formatarData } from "../../src/services/mockData";
 
@@ -361,6 +365,165 @@ function ModalComentarios({ post, aoFechar, nomeUsuario, uidUsuario }: ModalCome
 }
 
 // ---------------------------------------------------------------------------
+// Modal Perfil do Usuário (com avaliação para psicólogos)
+// ---------------------------------------------------------------------------
+interface ModalPerfilUsuarioProps {
+  autorId: string | null;
+  aoFechar: () => void;
+  uidAtual: string;
+  nomeAtual: string;
+  tipoConta: string;
+}
+
+function ModalPerfilUsuario({ autorId, aoFechar, uidAtual, nomeAtual, tipoConta }: ModalPerfilUsuarioProps) {
+  const [perfil, setPerfil] = useState<PerfilFirestore | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [estrelas, setEstrelas] = useState(0);
+  const [comentarioAvaliacao, setComentarioAvaliacao] = useState("");
+  const [enviandoAvaliacao, setEnviandoAvaliacao] = useState(false);
+  const [avaliacaoEnviada, setAvaliacaoEnviada] = useState(false);
+
+  useEffect(() => {
+    if (!autorId) { setPerfil(null); return; }
+    setCarregando(true);
+    setEstrelas(0);
+    setComentarioAvaliacao("");
+    setAvaliacaoEnviada(false);
+    getPerfil(autorId).then((p) => { setPerfil(p); setCarregando(false); });
+  }, [autorId]);
+
+  async function enviarAvaliacao() {
+    if (!perfil || estrelas === 0) return;
+    setEnviandoAvaliacao(true);
+    await avaliarPsicologo(perfil.uid, uidAtual, nomeAtual, estrelas, comentarioAvaliacao);
+    setEnviandoAvaliacao(false);
+    setAvaliacaoEnviada(true);
+  }
+
+  if (!autorId) return null;
+
+  return (
+    <Modal visible={!!autorId} transparent animationType="slide" onRequestClose={aoFechar}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
+        <Pressable style={{ position: "absolute", inset: 0 } as any} onPress={aoFechar} />
+        <View
+          style={{
+            backgroundColor: "#f0f9ff",
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            maxHeight: "80%",
+            overflow: "hidden",
+          }}
+        >
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#bae6fd" }}>
+            <Text style={{ fontSize: 16, color: COLORS.sky700 }}>Perfil do usuário</Text>
+            <Pressable onPress={aoFechar}><X size={20} color={COLORS.sky500} /></Pressable>
+          </View>
+
+          {carregando ? (
+            <View style={{ padding: 40, alignItems: "center" }}><ActivityIndicator color={COLORS.sky400} /></View>
+          ) : !perfil ? (
+            <View style={{ padding: 40, alignItems: "center" }}><Text style={{ color: COLORS.sky400 }}>Perfil não encontrado.</Text></View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: 24, gap: 16 }}>
+              {/* Foto e nome */}
+              <View style={{ alignItems: "center", gap: 8 }}>
+                {perfil.foto_url && !perfil.ocultar_foto ? (
+                  <Image source={{ uri: perfil.foto_url }} style={{ width: 80, height: 80, borderRadius: 40 }} resizeMode="cover" />
+                ) : (
+                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.sky300, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "#fff", fontSize: 28 }}>{perfil.nome?.[0] ?? "?"}</Text>
+                  </View>
+                )}
+                <Text style={{ fontSize: 18, color: COLORS.sky800 }}>{perfil.ocultar_nome ? "Usuário" : perfil.nome}</Text>
+                <View style={{ backgroundColor: perfil.tipo_conta === "psicologo" ? "#e0f2fe" : COLORS.sky100, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4 }}>
+                  <Text style={{ fontSize: 12, color: COLORS.sky600 }}>{perfil.tipo_conta === "psicologo" ? "🩺 Psicólogo(a)" : "👤 Paciente"}</Text>
+                </View>
+              </View>
+
+              {/* Dados do psicólogo */}
+              {perfil.tipo_conta === "psicologo" && (
+                <>
+                  {perfil.especialidade ? (
+                    <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 14 }}>
+                      <Text style={{ fontSize: 12, color: COLORS.sky500, marginBottom: 2 }}>Especialidade</Text>
+                      <Text style={{ fontSize: 14, color: COLORS.sky800 }}>{perfil.especialidade}</Text>
+                    </View>
+                  ) : null}
+                  {perfil.crm ? (
+                    <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 14 }}>
+                      <Text style={{ fontSize: 12, color: COLORS.sky500, marginBottom: 2 }}>CRM/CFP</Text>
+                      <Text style={{ fontSize: 14, color: COLORS.sky800 }}>{perfil.crm}</Text>
+                    </View>
+                  ) : null}
+                  {perfil.descricao ? (
+                    <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 14 }}>
+                      <Text style={{ fontSize: 12, color: COLORS.sky500, marginBottom: 2 }}>Sobre</Text>
+                      <Text style={{ fontSize: 14, color: COLORS.sky700, lineHeight: 20 }}>{perfil.descricao}</Text>
+                    </View>
+                  ) : null}
+                  <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 14 }}>
+                    <Text style={{ fontSize: 12, color: COLORS.sky500, marginBottom: 2 }}>Avaliação</Text>
+                    <Text style={{ fontSize: 14, color: COLORS.sky800 }}>
+                      ⭐ {perfil.media_avaliacao?.toFixed(1) ?? "–"} ({perfil.qtd_avaliacoes ?? 0} avaliações)
+                    </Text>
+                  </View>
+
+                  {/* Avaliação — apenas para pacientes avaliando psicólogos */}
+                  {tipoConta === "paciente" && perfil.uid !== uidAtual && (
+                    <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 10 }}>
+                      <Text style={{ fontSize: 14, color: COLORS.sky700 }}>
+                        {avaliacaoEnviada ? "Avaliação enviada! ✅" : "Avaliar este psicólogo"}
+                      </Text>
+                      {!avaliacaoEnviada && (
+                        <>
+                          <View style={{ flexDirection: "row", gap: 6 }}>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Pressable key={n} onPress={() => setEstrelas(n)}>
+                                <Star size={28} color="#f59e0b" fill={n <= estrelas ? "#f59e0b" : "transparent"} strokeWidth={1.5} />
+                              </Pressable>
+                            ))}
+                          </View>
+                          <TextInput
+                            value={comentarioAvaliacao}
+                            onChangeText={setComentarioAvaliacao}
+                            placeholder="Comentário (opcional)"
+                            placeholderTextColor={COLORS.sky300}
+                            multiline
+                            style={{ borderRadius: 12, borderWidth: 1, borderColor: "#bae6fd", backgroundColor: "#f0f9ff", paddingHorizontal: 14, paddingVertical: 10, color: COLORS.sky800, fontSize: 13, minHeight: 60, textAlignVertical: "top" }}
+                          />
+                          <Pressable
+                            onPress={enviarAvaliacao}
+                            disabled={estrelas === 0 || enviandoAvaliacao}
+                            style={{ backgroundColor: estrelas > 0 ? COLORS.sky400 : COLORS.sky200, borderRadius: 12, paddingVertical: 12, alignItems: "center" }}
+                          >
+                            {enviandoAvaliacao ? <ActivityIndicator color="#fff" size="small" /> : (
+                              <Text style={{ color: "#fff", fontSize: 14 }}>Enviar avaliação</Text>
+                            )}
+                          </Pressable>
+                        </>
+                      )}
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Contato/email — se não ocultar perfil */}
+              {!perfil.ocultar_perfil && perfil.email && (
+                <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 14 }}>
+                  <Text style={{ fontSize: 12, color: COLORS.sky500, marginBottom: 2 }}>Contato</Text>
+                  <Text style={{ fontSize: 14, color: COLORS.sky600 }}>{perfil.email}</Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 export default function RedeApoio() {
@@ -369,6 +532,7 @@ export default function RedeApoio() {
   const [carregando, setCarregando] = useState(true);
   const [modalPub, setModalPub] = useState(false);
   const [postSelecionado, setPostSelecionado] = useState<PostFirestore | null>(null);
+  const [autorSelecionadoId, setAutorSelecionadoId] = useState<string | null>(null);
 
   // Ouvir posts em tempo real
   useEffect(() => {
@@ -460,8 +624,11 @@ export default function RedeApoio() {
                 elevation: 2,
               }}
             >
-              {/* Autor */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              {/* Autor — clicável para ver perfil */}
+              <Pressable
+                onPress={() => setAutorSelecionadoId(item.autorId)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}
+              >
                 <Avatar nome={item.autorNome} size={38} />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -474,7 +641,7 @@ export default function RedeApoio() {
                   </View>
                   <Text style={{ fontSize: 11, color: COLORS.sky400 }}>{formatarData(item.data_publicacao)}</Text>
                 </View>
-              </View>
+              </Pressable>
 
               {/* Conteúdo */}
               <Text style={{ fontSize: 16, color: COLORS.sky800, marginBottom: 6 }}>{item.titulo}</Text>
@@ -518,6 +685,14 @@ export default function RedeApoio() {
         aoFechar={() => setPostSelecionado(null)}
         nomeUsuario={nomeUsuario}
         uidUsuario={usuarioLogado?.uid ?? ""}
+      />
+
+      <ModalPerfilUsuario
+        autorId={autorSelecionadoId}
+        aoFechar={() => setAutorSelecionadoId(null)}
+        uidAtual={usuarioLogado?.uid ?? ""}
+        nomeAtual={nomeUsuario}
+        tipoConta={usuarioLogado?.tipo_conta ?? "paciente"}
       />
     </GradientBackground>
   );

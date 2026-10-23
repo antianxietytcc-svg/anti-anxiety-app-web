@@ -1,5 +1,5 @@
 import { createContext, useEffect, useState, type ReactNode } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import {
@@ -192,15 +192,30 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  // Marca online/offline com base no estado do app (foreground/background)
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (!usuarioLogado) return;
+      if (nextState === "active") {
+        setOnline(usuarioLogado.uid).catch(() => {});
+      } else {
+        setOffline(usuarioLogado.uid).catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, [usuarioLogado]);
+
   // ---------------------------------------------------------------------------
- async function login(
+  async function login(
     email: string,
     senha: string
   ): Promise<{ sucesso: boolean; erro?: string }> {
     const res = await loginUsuario(email, senha);
-    if (!res.sucesso) return { sucesso: false, erro: res.erro };
-    
-    // O useEffect com onAuthStateChanged já cuida de carregar o perfil e marcar online!
+    if (!res.sucesso || !res.perfil) return { sucesso: false, erro: res.erro };
+    setUsuarioLogado(res.perfil);
+    const msgs = await listarMensagensEmergencia(res.perfil.uid);
+    setMensagensEmergencia(msgs);
+    setOnline(res.perfil.uid).catch(() => {});
     return { sucesso: true };
   }
 

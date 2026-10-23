@@ -42,7 +42,8 @@ import {
   EmailAuthProvider,
   type User,
 } from "firebase/auth";
-import { db, auth } from "./firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, auth, storage } from "./firebase";
 import type { TipoConta } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -250,34 +251,20 @@ export async function cadastrarUsuario(
 // ---------------------------------------------------------------------------
 // Firebase Auth — Login
 // ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Firebase Auth — Login (Otimizado sem chamada duplicada de perfil)
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Firebase Auth — Login
-// ---------------------------------------------------------------------------
 export async function loginUsuario(
   email: string,
   senha: string
 ): Promise<{ sucesso: boolean; perfil?: PerfilFirestore; erro?: string }> {
   try {
     const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), senha);
-    
-    // Buscamos o perfil para garantir o retorno completo sem quebrar chamadas antigas
-    const snap = await getDoc(doc(db, "usuarios", cred.user.uid));
-    const perfil = snap.exists() ? (snap.data() as PerfilFirestore) : undefined;
-
+    const uid = cred.user.uid;
+    const snap = await getDoc(doc(db, "usuarios", uid));
+    if (!snap.exists()) return { sucesso: false, erro: "Perfil não encontrado." };
+    const perfil = snap.data() as PerfilFirestore;
     return { sucesso: true, perfil };
   } catch (e: any) {
-    if (
-      e?.code === "auth/invalid-credential" || 
-      e?.code === "auth/wrong-password" || 
-      e?.code === "auth/user-not-found"
-    ) {
+    if (e?.code === "auth/invalid-credential" || e?.code === "auth/wrong-password" || e?.code === "auth/user-not-found") {
       return { sucesso: false, erro: "Email ou senha incorretos." };
-    }
-    if (e?.code === "auth/network-request-failed") {
-      return { sucesso: false, erro: "Falha de rede. Verifique sua conexão e tente novamente." };
     }
     return { sucesso: false, erro: e?.message ?? "Erro ao entrar." };
   }
@@ -385,6 +372,17 @@ export async function alterarEmail(
     }
     return { sucesso: false, erro: e?.message ?? "Erro ao alterar email." };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Upload de foto de perfil para Firebase Storage
+// ---------------------------------------------------------------------------
+export async function uploadFotoPerfilStorage(uid: string, localUri: string): Promise<string> {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+  const storageRef = ref(storage, `fotos_perfil/${uid}.jpg`);
+  await uploadBytes(storageRef, blob);
+  return await getDownloadURL(storageRef);
 }
 
 // ---------------------------------------------------------------------------
@@ -540,6 +538,24 @@ export async function listarChatsDoutor(doutorEmail: string): Promise<ChatFirest
   const norm = doutorEmail.trim().toLowerCase();
   const snap = await getDocs(query(collection(db, "chats"), where("psicoEmail", "==", norm)));
   return snap.docs.map((d) => d.data() as ChatFirestore);
+}
+
+export function ouvirChatsPaciente(pacienteEmail: string, callback: (chats: ChatFirestore[]) => void): Unsubscribe {
+  const norm = pacienteEmail.trim().toLowerCase();
+  const q = query(collection(db, "chats"), where("pacienteEmail", "==", norm));
+  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => d.data() as ChatFirestore)));
+}
+
+export function ouvirChatsDoutor(doutorEmail: string, callback: (chats: ChatFirestore[]) => void): Unsubscribe {
+  const norm = doutorEmail.trim().toLowerCase();
+  const q = query(collection(db, "chats"), where("psicoEmail", "==", norm));
+  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => d.data() as ChatFirestore)));
+}
+
+export async function contarChatsPsicologo(doutorEmail: string): Promise<number> {
+  const norm = doutorEmail.trim().toLowerCase();
+  const snap = await getDocs(query(collection(db, "chats"), where("psicoEmail", "==", norm)));
+  return snap.size;
 }
 
 export async function enviarMensagem(

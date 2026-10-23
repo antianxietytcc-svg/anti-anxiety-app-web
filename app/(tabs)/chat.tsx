@@ -1,6 +1,6 @@
 /**
  * Tela de Conversas — lista chats existentes e permite iniciar novas conversas.
- * Inclui busca por nome de usuário com autocomplete.
+ * Inclui busca por nome de usuário com autocomplete (case-insensitive).
  */
 import { useCallback, useContext, useEffect, useState } from "react";
 import {
@@ -19,7 +19,8 @@ import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
 import {
-  listarChatsPaciente,
+  ouvirChatsPaciente,
+  ouvirChatsDoutor,
   buscarUsuariosPorNome,
   garantirChat,
   type ChatFirestore,
@@ -36,9 +37,10 @@ interface ModalAdicionarProps {
   uidAtual: string;
   nomeAtual: string;
   emailAtual: string;
+  tipoConta: TipoConta;
 }
 
-function ModalAdicionarConversa({ visivel, aoFechar, uidAtual, nomeAtual, emailAtual }: ModalAdicionarProps) {
+function ModalAdicionarConversa({ visivel, aoFechar, uidAtual, nomeAtual, emailAtual, tipoConta }: ModalAdicionarProps) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [resultados, setResultados] = useState<{ uid: string; email: string; nome: string; tipo_conta: TipoConta }[]>([]);
@@ -62,17 +64,28 @@ function ModalAdicionarConversa({ visivel, aoFechar, uidAtual, nomeAtual, emailA
 
   async function iniciarConversa(usuario: { uid: string; email: string; nome: string; tipo_conta: TipoConta }) {
     setAbrindo(usuario.uid);
-    // Para chat entre paciente e psicólogo: psicólogo é o primeiro parâmetro
     let chatId: string;
-    if (usuario.tipo_conta === "psicologo") {
-      chatId = await garantirChat(usuario.email, usuario.nome, emailAtual, nomeAtual);
-    } else {
+    // psicólogo sempre é o primeiro parâmetro de garantirChat
+    if (tipoConta === "psicologo") {
       chatId = await garantirChat(emailAtual, nomeAtual, usuario.email, usuario.nome);
+      setAbrindo(null);
+      aoFechar();
+      setBusca("");
+      router.push(`/doutor/chat/${chatId}`);
+    } else if (usuario.tipo_conta === "psicologo") {
+      chatId = await garantirChat(usuario.email, usuario.nome, emailAtual, nomeAtual);
+      setAbrindo(null);
+      aoFechar();
+      setBusca("");
+      router.push(`/paciente/chat/${chatId}`);
+    } else {
+      // Paciente falando com paciente: cria chat no formato psico=outro, paciente=atual
+      chatId = await garantirChat(usuario.email, usuario.nome, emailAtual, nomeAtual);
+      setAbrindo(null);
+      aoFechar();
+      setBusca("");
+      router.push(`/paciente/chat/${chatId}`);
     }
-    setAbrindo(null);
-    aoFechar();
-    setBusca("");
-    router.push(`/paciente/chat/${chatId}`);
   }
 
   return (
@@ -116,6 +129,7 @@ function ModalAdicionarConversa({ visivel, aoFechar, uidAtual, nomeAtual, emailA
               placeholder="Buscar por nome ou e-mail..."
               placeholderTextColor={COLORS.sky300}
               autoFocus
+              autoCapitalize="none"
               style={{ flex: 1, color: COLORS.sky800, fontSize: 14 }}
             />
             {buscando && <ActivityIndicator size="small" color={COLORS.sky400} />}
@@ -175,18 +189,30 @@ export default function Chat() {
   const { usuarioLogado, mensagensEmergencia, nomeUsuario } = useContext(LayoutContext);
 
   const [chatsFirebase, setChatsFirebase] = useState<ChatFirestore[]>([]);
-  const [carregando, setCarregando] = useState(false);
+  const [carregando, setCarregando] = useState(true);
   const [modalAdicionar, setModalAdicionar] = useState(false);
 
-  const carregar = useCallback(async () => {
+  const tipoConta = usuarioLogado?.tipo_conta ?? "paciente";
+
+  useEffect(() => {
     if (!usuarioLogado) return;
     setCarregando(true);
-    const lista = await listarChatsPaciente(usuarioLogado.email);
-    setChatsFirebase(lista);
-    setCarregando(false);
-  }, [usuarioLogado]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+    let unsub: (() => void) | undefined;
+    if (tipoConta === "psicologo") {
+      unsub = ouvirChatsDoutor(usuarioLogado.email, (lista) => {
+        setChatsFirebase(lista);
+        setCarregando(false);
+      });
+    } else {
+      unsub = ouvirChatsPaciente(usuarioLogado.email, (lista) => {
+        setChatsFirebase(lista);
+        setCarregando(false);
+      });
+    }
+
+    return () => unsub?.();
+  }, [usuarioLogado]);
 
   // Item de emergência (chat local com Dra. Sofia)
   const itemEmergencia =
@@ -202,16 +228,25 @@ export default function Chat() {
         }
       : null;
 
-  // Chats reais do Firebase
-  const itensFirebase = chatsFirebase.map((c) => ({
-    id: c.chatId,
-    name: c.psicoNome ?? c.doutorNome ?? "Psicólogo",
-    role: "(Psicólogo)",
-    lastMessage: c.ultimaMensagem ?? "Conversa iniciada",
-    time: c.ultimaHora ?? "",
-    unread: false,
-    chatId: c.chatId,
-  }));
+  // Chats reais do Firebase — o nome mostrado é sempre o OUTRO usuário
+  const itensFirebase = chatsFirebase.map((c) => {
+    const isPsicologo = tipoConta === "psicologo";
+    const nomeOutro = isPsicologo
+      ? (c.pacienteNome ?? "Paciente")
+      : (c.psicoNome ?? c.doutorNome ?? "Psicólogo");
+    const roleOutro = isPsicologo ? "(Paciente)" : "(Psicólogo)";
+    const rota = isPsicologo ? `/doutor/chat/${c.chatId}` : `/paciente/chat/${c.chatId}`;
+    return {
+      id: c.chatId,
+      name: nomeOutro,
+      role: roleOutro,
+      lastMessage: c.ultimaMensagem ?? "Conversa iniciada",
+      time: c.ultimaHora ?? "",
+      unread: false,
+      chatId: c.chatId,
+      rota,
+    };
+  });
 
   const listaFinal = [
     ...(itemEmergencia ? [itemEmergencia] : []),
@@ -267,7 +302,11 @@ export default function Chat() {
           renderItem={({ item }) => (
             <Pressable
               onPress={() => {
-                if (item.chatId) router.push(`/paciente/chat/${item.chatId}`);
+                if (item.id === "emergencia") {
+                  router.push("/emergencia");
+                } else if ("rota" in item && item.rota) {
+                  router.push(item.rota as any);
+                }
               }}
               style={{
                 flexDirection: "row",
@@ -325,6 +364,7 @@ export default function Chat() {
           uidAtual={usuarioLogado.uid}
           nomeAtual={usuarioLogado.nome}
           emailAtual={usuarioLogado.email}
+          tipoConta={tipoConta}
         />
       )}
     </GradientBackground>
