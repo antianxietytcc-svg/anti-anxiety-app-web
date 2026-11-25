@@ -28,6 +28,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   serverTimestamp,
   type Unsubscribe,
   limit,
@@ -35,6 +36,7 @@ import {
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signOut,
   sendPasswordResetEmail,
   updatePassword,
   updateEmail,
@@ -42,8 +44,8 @@ import {
   EmailAuthProvider,
   type User,
 } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, auth, storage } from "./firebase";
+import { db, auth } from "./firebase";
+import { prepararImagem } from "./media";
 import type { TipoConta } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -253,14 +255,22 @@ export async function cadastrarUsuario(
 // ---------------------------------------------------------------------------
 export async function loginUsuario(
   email: string,
-  senha: string
+  senha: string,
+  tipoEsperado?: TipoConta
 ): Promise<{ sucesso: boolean; perfil?: PerfilFirestore; erro?: string }> {
   try {
     const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), senha);
     const uid = cred.user.uid;
     const snap = await getDoc(doc(db, "usuarios", uid));
-    if (!snap.exists()) return { sucesso: false, erro: "Perfil não encontrado." };
+    if (!snap.exists()) {
+      await signOut(auth);
+      return { sucesso: false, erro: "Perfil não encontrado." };
+    }
     const perfil = snap.data() as PerfilFirestore;
+    if (tipoEsperado && perfil.tipo_conta !== tipoEsperado) {
+      await signOut(auth);
+      return { sucesso: false, erro: "Esta conta não é de psicólogo." };
+    }
     return { sucesso: true, perfil };
   } catch (e: any) {
     if (e?.code === "auth/invalid-credential" || e?.code === "auth/wrong-password" || e?.code === "auth/user-not-found") {
@@ -372,17 +382,6 @@ export async function alterarEmail(
     }
     return { sucesso: false, erro: e?.message ?? "Erro ao alterar email." };
   }
-}
-
-// ---------------------------------------------------------------------------
-// Upload de foto de perfil para Firebase Storage
-// ---------------------------------------------------------------------------
-export async function uploadFotoPerfilStorage(uid: string, localUri: string): Promise<string> {
-  const response = await fetch(localUri);
-  const blob = await response.blob();
-  const storageRef = ref(storage, `fotos_perfil/${uid}.jpg`);
-  await uploadBytes(storageRef, blob);
-  return await getDownloadURL(storageRef);
 }
 
 // ---------------------------------------------------------------------------
@@ -568,21 +567,26 @@ export async function enviarMensagem(
 ): Promise<void> {
   const msgId = gerarId();
   const hora = horaAgora();
-  await setDoc(doc(db, "chats", chatId, "mensagens", msgId), {
+  const urlFinal = media_url && tipo === "imagem" ? await prepararImagem(media_url) : null;
+  if (media_url && tipo !== "imagem") throw new Error("O chat aceita anexos de imagem.");
+  const batch = writeBatch(db);
+  batch.set(doc(db, "chats", chatId, "mensagens", msgId), {
     texto,
     tipo,
-    media_url: media_url ?? null,
+    media_url: urlFinal,
     autorEmail,
     autorNome,
     hora,
     timestamp: Date.now(),
   });
-  await setDoc(doc(db, "chats", chatId), { ultimaMensagem: texto, ultimaHora: hora }, { merge: true });
+  batch.update(doc(db, "chats", chatId), { ultimaMensagem: texto, ultimaHora: hora });
+  await batch.commit();
 }
 
 export function ouvirMensagens(
   chatId: string,
-  callback: (msgs: MensagemFirestore[]) => void
+  callback: (msgs: MensagemFirestore[]) => void,
+  onError?: () => void
 ): Unsubscribe {
   const ref = collection(db, "chats", chatId, "mensagens");
   const q = query(ref, orderBy("timestamp", "asc"));
@@ -596,7 +600,7 @@ export function ouvirMensagens(
       };
     });
     callback(msgs);
-  });
+  }, onError);
 }
 
 // ---------------------------------------------------------------------------
@@ -622,13 +626,14 @@ export async function criarPost(
   imagem_url?: string
 ): Promise<PostFirestore> {
   const id = gerarId();
+  const imagemFinal = imagem_url ? await prepararImagem(imagem_url) : "";
   const post: Omit<PostFirestore, "id"> = {
     titulo: titulo.trim(),
     conteudo: conteudo.trim(),
     autorId,
     autorNome,
     autorTipo,
-    imagem_url: imagem_url ?? "",
+    imagem_url: imagemFinal,
     qtd_comentarios: 0,
     timestamp: Date.now(),
     data_publicacao: new Date().toISOString(),

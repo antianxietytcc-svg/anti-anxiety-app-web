@@ -46,7 +46,7 @@ interface ModalContatoProps {
   visivel: boolean;
   contatoEditar?: ContatoEmergencia | null;
   aoFechar: () => void;
-  aoSalvar: (nome: string, telefone: string, tipo: TipoRelacao) => void;
+  aoSalvar: (nome: string, telefone: string, tipo: TipoRelacao) => Promise<void>;
 }
 
 function ModalContato({
@@ -73,13 +73,24 @@ function ModalContato({
     setErro("");
   }, [contatoEditar, visivel]);
 
-  function handleSalvar() {
+  const [salvando, setSalvando] = useState(false);
+
+  async function handleSalvar() {
+    if (salvando) return;
     const validacao = validarContato(nome, telefone);
     if (!validacao.valido) {
       setErro(validacao.erro ?? "Verifique os campos.");
       return;
     }
-    aoSalvar(nome.trim(), telefone.trim(), tipoSelecionado);
+    setSalvando(true);
+    setErro("");
+    try {
+      await aoSalvar(nome.trim(), telefone.trim(), tipoSelecionado);
+    } catch {
+      setErro("Não foi possível salvar o contato.");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -258,6 +269,7 @@ function ModalContato({
 
               <Pressable
                 onPress={handleSalvar}
+                disabled={salvando}
                 accessibilityRole="button"
                 accessibilityLabel="Salvar contato"
                 style={({ pressed }) => ({
@@ -290,7 +302,7 @@ function ModalContato({
 export default function ContatosEmergencia() {
   const router = useRouter();
   const { usuarioLogado } = useContext(LayoutContext);
-  const idUsuario = usuarioLogado?.email ?? "demo";
+  const idUsuario = usuarioLogado?.uid ?? "";
 
   const [contatos, setContatos] = useState<ContatoEmergencia[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -303,11 +315,17 @@ export default function ContatosEmergencia() {
   const [modalConfirmacao, setModalConfirmacao] = useState(false);
   const [textoConfirmacao, setTextoConfirmacao] = useState("");
 
+  const [erroContatos, setErroContatos] = useState("");
   const carregar = useCallback(async () => {
     setCarregando(true);
-    const lista = await listarContatos(idUsuario);
-    setContatos(lista);
-    setCarregando(false);
+    setErroContatos("");
+    try {
+      setContatos(idUsuario ? await listarContatos(idUsuario) : []);
+    } catch {
+      setErroContatos("Não foi possível carregar os contatos.");
+    } finally {
+      setCarregando(false);
+    }
   }, [idUsuario]);
 
   useEffect(() => {
@@ -319,8 +337,9 @@ export default function ContatosEmergencia() {
     telefone: string,
     tipo: TipoRelacao
   ) {
+    if (!idUsuario) throw new Error("Faça login para salvar.");
     if (contatoEditar) {
-      await atualizarContato(contatoEditar.id_contato, {
+      await atualizarContato(idUsuario, contatoEditar.id_contato, {
         nome,
         telefone,
         tipo_relacao: tipo,
@@ -353,8 +372,12 @@ export default function ContatosEmergencia() {
   }
 
   async function handleRemover(idContato: string) {
-    await removerContato(idContato);
-    setContatos((prev) => prev.filter((c) => c.id_contato !== idContato));
+    try {
+      await removerContato(idUsuario, idContato);
+      setContatos((prev) => prev.filter((c) => c.id_contato !== idContato));
+    } catch {
+      setErroContatos("Não foi possível excluir o contato.");
+    }
   }
 
   function abrirEditar(contato: ContatoEmergencia) {
@@ -369,6 +392,7 @@ export default function ContatosEmergencia() {
 
   return (
     <GradientBackground>
+      {erroContatos ? <Text accessibilityRole="alert">{erroContatos}</Text> : null}
       {/* Header */}
       <View
         style={{

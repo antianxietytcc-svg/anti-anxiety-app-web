@@ -20,21 +20,23 @@ export default function PacienteChatPage() {
 
   useEffect(() => {
     if (!chatId || !usuarioLogado) return;
-    getDoc(doc(db, "chats", chatId)).then(async (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        const emailAtual = usuarioLogado.email.trim().toLowerCase();
-        // Determina o outro participante com base no email atual
-        if (data.psicoEmail === emailAtual || data.doutorEmail === emailAtual) {
-          // Usuário atual é o psicólogo → outro é o paciente
-          setNomeOutro(data.pacienteNome ?? "Paciente");
-        } else {
-          // Usuário atual é o paciente → outro é o psicólogo
-          setNomeOutro(data.psicoNome ?? data.doutorNome ?? "Psicólogo");
+    getDoc(doc(db, "chats", chatId))
+      .then((snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const emailAtual = usuarioLogado.email.trim().toLowerCase();
+          // Determina o outro participante com base no email atual
+          if (data.psicoEmail === emailAtual || data.doutorEmail === emailAtual) {
+            // Usuário atual é o psicólogo → outro é o paciente
+            setNomeOutro(data.pacienteNome ?? "Paciente");
+          } else {
+            // Usuário atual é o paciente → outro é o psicólogo
+            setNomeOutro(data.psicoNome ?? data.doutorNome ?? "Psicólogo");
+          }
         }
-      }
-      setPronto(true);
-    });
+      })
+      .catch(() => {})
+      .finally(() => setPronto(true));
   }, [chatId, usuarioLogado]);
 
   if (!pronto || !usuarioLogado) {

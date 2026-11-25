@@ -13,15 +13,17 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { ChevronLeft, Send, Image as ImageIcon, Mic, Video } from "lucide-react-native";
+import { ChevronLeft, Send, Image as ImageIcon, Mic } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
+import { ImagemInvalida } from "../lib/media";
 import { GradientBackground } from "./GradientBackground";
 import { COLORS } from "../constants/theme";
 import {
@@ -63,11 +65,12 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
   const [mensagens, setMensagens] = useState<MensagemFirestore[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
   const [online, setOnline] = useState(false);
   const flatRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    const unsub = ouvirMensagens(chatId, setMensagens);
+    const unsub = ouvirMensagens(chatId, setMensagens, () => setErro("Não foi possível carregar as mensagens."));
     return () => unsub();
   }, [chatId]);
 
@@ -87,32 +90,35 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
   async function enviar() {
     const t = texto.trim();
     if (!t || enviando) return;
-    setTexto("");
+    setErro("");
     setEnviando(true);
-    await enviarMensagem(chatId, t, emailAtual, nomeAtual, "texto");
-    setEnviando(false);
-  }
-
-  async function enviarImagem() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      await enviarMensagem(chatId, "📷 Imagem", emailAtual, nomeAtual, "imagem", uri);
+    try {
+      await enviarMensagem(chatId, t, emailAtual, nomeAtual, "texto");
+      setTexto((atual) => atual.trim() === t ? "" : atual);
+    } catch {
+      setErro("Não foi possível enviar a mensagem. Tente novamente.");
+    } finally {
+      setEnviando(false);
     }
   }
 
-  async function enviarVideo() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      await enviarMensagem(chatId, "🎥 Vídeo", emailAtual, nomeAtual, "video", uri);
+  async function enviarImagem() {
+    if (enviando) return;
+    setErro("");
+    setEnviando(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+      });
+      const arquivo = result.canceled ? undefined : result.assets[0];
+      if (arquivo) {
+        await enviarMensagem(chatId, "Imagem", emailAtual, nomeAtual, "imagem", arquivo.uri);
+      }
+    } catch (erro) {
+      setErro(erro instanceof ImagemInvalida ? erro.message : "Não foi possível enviar a imagem. Tente novamente.");
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -154,6 +160,8 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
         </View>
         {headerExtra}
       </View>
+
+      {erro ? <Text accessibilityRole="alert" style={{ padding: 12, color: "#b91c1c" }}>{erro}</Text> : null}
 
       {/* Messages */}
       <FlatList
@@ -224,9 +232,9 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
                       resizeMode="cover"
                     />
                   ) : item.tipo === "video" && item.media_url ? (
-                    <View style={{ width: 200, height: 120, borderRadius: 10, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ color: "#fff", fontSize: 12 }}>🎥 Vídeo</Text>
-                    </View>
+                    <Pressable onPress={() => Linking.openURL(item.media_url!).catch(() => setErro("Não foi possível abrir o vídeo."))}>
+                        <Text style={{ textDecorationLine: "underline" }}>Abrir vídeo</Text>
+                      </Pressable>
                   ) : (
                     <Text style={{ color: minha ? "#fff" : COLORS.sky800, fontSize: 14, lineHeight: 20 }}>
                       {item.texto}
@@ -267,6 +275,8 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
           {/* Botão enviar imagem */}
           <Pressable
             onPress={enviarImagem}
+              disabled={enviando}
+              accessibilityLabel="Enviar imagem"
             style={{
               width: 38,
               height: 38,
@@ -279,20 +289,6 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
             <ImageIcon size={18} color={COLORS.sky600} strokeWidth={1.5} />
           </Pressable>
 
-          {/* Botão enviar vídeo */}
-          <Pressable
-            onPress={enviarVideo}
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: COLORS.sky100,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Video size={18} color={COLORS.sky600} strokeWidth={1.5} />
-          </Pressable>
 
           <TextInput
             value={texto}

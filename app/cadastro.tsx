@@ -301,7 +301,7 @@ export default function Cadastro() {
         texto={textoModal}
         ocultar={() => {
           setModalDemo(false);
-          router.replace("/(tabs)/home");
+          router.replace(tipoConta === "psicologo" ? "/doutor/sala" : "/(tabs)/home");
         }}
       />
     </GradientBackground>

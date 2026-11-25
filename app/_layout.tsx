@@ -3,8 +3,19 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { LayoutProvider } from "../src/contexts/LayoutContext";
+import { Text, View } from "react-native";
+import { firebaseConfigurado } from "../src/lib/firebase";
 
 export default function RootLayout() {
+  if (!firebaseConfigurado) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 8 }}>
+        <Text style={{ fontSize: 22 }}>Configuração do Firebase pendente</Text>
+        <Text>Preencha o arquivo .env.local com os dados do projeto e reinicie o Expo.</Text>
+      </View>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <LayoutProvider>
@@ -16,8 +27,6 @@ export default function RootLayout() {
           <Stack.Screen name="sons" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="sobre" />
-          <Stack.Screen name="doutor" />
-          <Stack.Screen name="paciente" />
           <Stack.Screen name="emergencia" />
           <Stack.Screen name="psicologos" />
           <Stack.Screen name="contatos-emergencia" />

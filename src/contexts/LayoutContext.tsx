@@ -83,7 +83,7 @@ interface LayoutContextType {
   // auth
   usuarioLogado: PerfilFirestore | null;
   estaCarregando: boolean;
-  login: (email: string, senha: string) => Promise<{ sucesso: boolean; erro?: string }>;
+  login: (email: string, senha: string, tipoEsperado?: TipoConta) => Promise<{ sucesso: boolean; erro?: string }>;
   cadastrar: (
     nome: string,
     email: string,
@@ -172,8 +172,9 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
           if (perfil) {
             setUsuarioLogado(perfil);
             // Carrega mensagens de emergência
-            const msgs = await listarMensagensEmergencia(user.uid);
-            setMensagensEmergencia(msgs);
+            listarMensagensEmergencia(user.uid)
+              .then((msgs) => { if (auth.currentUser?.uid === user.uid) setMensagensEmergencia(msgs); })
+              .catch(() => {});
             // Marca como online
             setOnline(user.uid).catch(() => {});
           } else {
@@ -208,13 +209,12 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
   // ---------------------------------------------------------------------------
   async function login(
     email: string,
-    senha: string
+    senha: string,
+    tipoEsperado?: TipoConta
   ): Promise<{ sucesso: boolean; erro?: string }> {
-    const res = await loginUsuario(email, senha);
+    const res = await loginUsuario(email, senha, tipoEsperado);
     if (!res.sucesso || !res.perfil) return { sucesso: false, erro: res.erro };
     setUsuarioLogado(res.perfil);
-    const msgs = await listarMensagensEmergencia(res.perfil.uid);
-    setMensagensEmergencia(msgs);
     setOnline(res.perfil.uid).catch(() => {});
     return { sucesso: true };
   }

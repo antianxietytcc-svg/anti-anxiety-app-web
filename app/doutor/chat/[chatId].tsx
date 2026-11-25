@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChatTela } from "../../../src/components/ChatTela";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "../../../src/lib/firebase";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,16 +30,9 @@ import {
   CalendarClock,
   X,
 } from "lucide-react-native";
-import { criarAgendamento } from "../../../src/lib/firestore";
+import { criarAgendamento, getPaciente } from "../../../src/lib/firestore";
 
-const KEY_DOUTOR_SESSAO = "aa_doutor_sessao";
-
-function lerSessao(): { email: string; nome: string; uid: string } | null {
-  try {
-    const raw = localStorage.getItem(KEY_DOUTOR_SESSAO);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
+import { LayoutContext } from "../../../src/contexts/LayoutContext";
 
 // ---------------------------------------------------------------------------
 // Modal de chamada ativa (vídeo ou áudio simulado)
@@ -68,7 +61,7 @@ function ModalChamadaAtiva({ tipo, nomeOutro, aoEncerrar }: ModalChamadaProps) {
   }
 
   return (
-    <Modal visible transparent animationType="fade">
+    <Modal visible transparent animationType="fade" onRequestClose={aoEncerrar}>
       <View style={{ flex: 1, backgroundColor: "#0f172a", alignItems: "center", justifyContent: "center", gap: 32 }}>
         {/* Avatar / câmera */}
         <View style={{ alignItems: "center", gap: 12 }}>
@@ -83,6 +76,7 @@ function ModalChamadaAtiva({ tipo, nomeOutro, aoEncerrar }: ModalChamadaProps) {
             </View>
           )}
           <Text style={{ color: "#fff", fontSize: 22 }}>{nomeOutro}</Text>
+          <Text style={{ color: "#94a3b8" }}>Simulação de chamada</Text>
           <Text style={{ color: "#94a3b8", fontSize: 15 }}>🔴 {formatarDuracao(duracao)}</Text>
         </View>
 
@@ -116,12 +110,7 @@ function ModalChamadaAtiva({ tipo, nomeOutro, aoEncerrar }: ModalChamadaProps) {
 
           {/* Encerrar */}
           <Pressable
-            onPress={() => {
-              Alert.alert("Encerrar sessão?", "Deseja encerrar esta chamada?", [
-                { text: "Cancelar", style: "cancel" },
-                { text: "Encerrar", style: "destructive", onPress: aoEncerrar },
-              ]);
-            }}
+            onPress={aoEncerrar}
             style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#ef4444", alignItems: "center", justifyContent: "center" }}
           >
             <PhoneOff size={28} color="#fff" strokeWidth={1.5} />
@@ -148,17 +137,26 @@ function ModalAgendarSessao({ visivel, aoFechar, sessao, pacienteId, pacienteNom
   const [hora, setHora] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [sucesso, setSucesso] = useState(false);
+  const [erro, setErro] = useState("");
 
   async function agendar() {
-    if (!data.trim() || !hora.trim()) {
-      Alert.alert("Preencha data e horário.");
+    setErro("");
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(data.trim()) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora.trim())) {
+      setErro("Use DD/MM/AAAA e HH:MM para informar data e horário.");
       return;
     }
     setSalvando(true);
-    await criarAgendamento(pacienteId, pacienteNome, sessao.uid, sessao.nome, data.trim(), hora.trim());
-    setSalvando(false);
-    setSucesso(true);
-    setTimeout(() => { setSucesso(false); aoFechar(); }, 1500);
+    try {
+      const paciente = await getPaciente(pacienteId);
+      if (!paciente) throw new Error("Paciente indisponível");
+      await criarAgendamento(paciente.uid, pacienteNome, sessao.uid, sessao.nome, data.trim(), hora.trim());
+      setSucesso(true);
+      setTimeout(() => { setSucesso(false); aoFechar(); }, 1500);
+    } catch {
+      setErro("Não foi possível agendar a sessão. Tente novamente.");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -171,6 +169,7 @@ function ModalAgendarSessao({ visivel, aoFechar, sessao, pacienteId, pacienteNom
             <Pressable onPress={aoFechar}><X size={20} color={COLORS.sky500} /></Pressable>
           </View>
           <Text style={{ fontSize: 13, color: COLORS.sky600 }}>Com: {pacienteNome}</Text>
+          {erro ? <Text accessibilityRole="alert" style={{ color: "#b91c1c" }}>{erro}</Text> : null}
           {sucesso ? (
             <Text style={{ textAlign: "center", color: "#22c55e", fontSize: 15, paddingVertical: 10 }}>✅ Sessão agendada com sucesso!</Text>
           ) : (
@@ -203,7 +202,8 @@ function ModalAgendarSessao({ visivel, aoFechar, sessao, pacienteId, pacienteNom
 // ---------------------------------------------------------------------------
 export default function DoutorChatPage() {
   const { chatId } = useLocalSearchParams<{ chatId: string }>();
-  const sessao = lerSessao();
+  const { usuarioLogado, estaCarregando } = useContext(LayoutContext);
+  const sessao = usuarioLogado?.tipo_conta === "psicologo" ? usuarioLogado : null;
   const router = useRouter();
 
   const [nomeOutro, setNomeOutro] = useState("");
@@ -214,16 +214,23 @@ export default function DoutorChatPage() {
   const [menuSessao, setMenuSessao] = useState(false);
 
   useEffect(() => {
+    if (estaCarregando) return;
+    if (!sessao) {
+      router.replace("/doutor");
+      return;
+    }
     if (!chatId) return;
-    getDoc(doc(db, "chats", chatId)).then((snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setNomeOutro(data.pacienteNome ?? "Paciente");
-        setPacienteId(data.pacienteEmail ?? "");
-      }
-      setPronto(true);
-    });
-  }, [chatId]);
+    getDoc(doc(db, "chats", chatId))
+      .then((snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setNomeOutro(data.pacienteNome ?? "Paciente");
+          setPacienteId(data.pacienteEmail ?? "");
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPronto(true));
+  }, [chatId, sessao, estaCarregando, router]);
 
   if (!pronto || !sessao) {
     return (
@@ -235,14 +242,7 @@ export default function DoutorChatPage() {
 
   function iniciarChamada(tipo: "video" | "audio") {
     setMenuSessao(false);
-    Alert.alert(
-      tipo === "video" ? "Iniciar chamada de vídeo" : "Iniciar chamada de áudio",
-      `Iniciar ${tipo === "video" ? "vídeo" : "chamada de voz"} com ${nomeOutro}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Iniciar", onPress: () => setChamadaAtiva(tipo) },
-      ]
-    );
+    setChamadaAtiva(tipo);
   }
 
   return (

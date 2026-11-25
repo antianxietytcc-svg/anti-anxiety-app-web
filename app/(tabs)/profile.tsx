@@ -2,6 +2,7 @@ import { useContext, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Modal,
   Pressable,
   ScrollView,
@@ -29,7 +30,8 @@ import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
 import { getIniciais } from "../../src/components/Avatar";
-import { alterarSenha, alterarEmail, uploadFotoPerfilStorage } from "../../src/lib/firestore";
+import { alterarSenha, alterarEmail } from "../../src/lib/firestore";
+import { ImagemInvalida, prepararImagem } from "../../src/lib/media";
 
 // ---------------------------------------------------------------------------
 // Componente de campo de edição inline
@@ -397,10 +399,12 @@ export default function Profile() {
     if (!result.canceled && result.assets[0] && usuarioLogado) {
       setSalvandoFoto(true);
       try {
-        const url = await uploadFotoPerfilStorage(usuarioLogado.uid, result.assets[0].uri);
+        const url = await prepararImagem(result.assets[0].uri);
         await atualizarPerfilLocal({ foto_url: url });
-      } catch {
-        await atualizarPerfilLocal({ foto_url: result.assets[0].uri });
+      } catch (erro) {
+        const mensagem = erro instanceof ImagemInvalida ? erro.message : "Não foi possível salvar a foto de perfil.";
+        if (Platform.OS === "web") window.alert(mensagem);
+        else Alert.alert("Erro", mensagem);
       }
       setSalvandoFoto(false);
     }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,16 +12,11 @@ import { useRouter } from "expo-router";
 import { Stethoscope } from "lucide-react-native";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
-import { loginDoutor, cadastrarDoutor } from "../../src/lib/firestore";
-
-const KEY_DOUTOR_SESSAO = "aa_doutor_sessao";
-
-function salvarSessaoDoutor(email: string, nome: string, uid: string) {
-  try { localStorage.setItem(KEY_DOUTOR_SESSAO, JSON.stringify({ email, nome, uid })); } catch {}
-}
+import { LayoutContext } from "../../src/contexts/LayoutContext";
 
 export default function DoutorLogin() {
   const router = useRouter();
+  const { login, cadastrar } = useContext(LayoutContext);
   const [modo, setModo] = useState<"login" | "cadastro">("login");
 
   const [nome, setNome] = useState("");
@@ -35,10 +30,9 @@ export default function DoutorLogin() {
   async function handleLogin() {
     setErro("");
     setCarregando(true);
-    const res = await loginDoutor(email, senha);
+    const res = await login(email, senha, "psicologo");
     setCarregando(false);
-    if (res.sucesso && res.doutor) {
-      salvarSessaoDoutor(res.doutor.email, res.doutor.nome, res.doutor.uid);
+    if (res.sucesso) {
       router.replace("/doutor/sala");
     } else {
       setErro(res.erro ?? "Erro ao entrar.");
@@ -50,14 +44,9 @@ export default function DoutorLogin() {
     if (senha !== confirmar) { setErro("As senhas não coincidem."); return; }
     if (senha.length < 6) { setErro("Senha deve ter mínimo 6 caracteres."); return; }
     setCarregando(true);
-    const res = await cadastrarDoutor(nome, email, crm, senha);
+    const res = await cadastrar(nome, email, senha, "psicologo", { crm });
     setCarregando(false);
     if (res.sucesso) {
-      // buscar uid após cadastro
-      const { loginDoutor: ld } = await import("../../src/lib/firestore");
-      const loginRes = await ld(email.trim().toLowerCase(), senha);
-      const uid = loginRes.doutor?.uid ?? "";
-      salvarSessaoDoutor(email.trim().toLowerCase(), nome.trim(), uid);
       router.replace("/doutor/sala");
     } else {
       setErro(res.erro ?? "Erro ao cadastrar.");

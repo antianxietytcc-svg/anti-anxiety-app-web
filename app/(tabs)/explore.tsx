@@ -34,6 +34,7 @@ import {
   type PerfilFirestore,
 } from "../../src/lib/firestore";
 import { formatarData } from "../../src/services/mockData";
+import { ImagemInvalida } from "../../src/lib/media";
 
 // ---------------------------------------------------------------------------
 // Modal Nova Publicação
@@ -41,7 +42,7 @@ import { formatarData } from "../../src/services/mockData";
 interface ModalPublicacaoProps {
   visivel: boolean;
   aoFechar: () => void;
-  aoPublicar: (titulo: string, conteudo: string, imagemUri?: string) => void;
+  aoPublicar: (titulo: string, conteudo: string, imagemUri?: string) => Promise<void>;
 }
 
 function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoProps) {
@@ -50,12 +51,23 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
   const [imagemUri, setImagemUri] = useState<string | undefined>();
   const [erro, setErro] = useState("");
 
-  function handlePublicar() {
+  const [publicando, setPublicando] = useState(false);
+
+  async function handlePublicar() {
+    if (publicando) return;
     if (!titulo.trim()) { setErro("O título é obrigatório."); return; }
     if (titulo.trim().length > 100) { setErro("Título muito longo (máx. 100 caracteres)."); return; }
     if (!conteudo.trim()) { setErro("O conteúdo é obrigatório."); return; }
     if (conteudo.trim().length > 1000) { setErro("Conteúdo muito longo (máx. 1000 caracteres)."); return; }
-    aoPublicar(titulo.trim(), conteudo.trim(), imagemUri);
+    setPublicando(true);
+    try {
+      await aoPublicar(titulo.trim(), conteudo.trim(), imagemUri);
+    } catch (erro) {
+      setErro(erro instanceof ImagemInvalida ? erro.message : "Não foi possível publicar. Tente novamente.");
+      return;
+    } finally {
+      setPublicando(false);
+    }
     setTitulo("");
     setConteudo("");
     setImagemUri(undefined);
@@ -545,7 +557,6 @@ export default function RedeApoio() {
 
   async function handlePublicar(titulo: string, conteudo: string, imagemUri?: string) {
     if (!usuarioLogado) return;
-    setModalPub(false);
     await criarPost(
       titulo,
       conteudo,
@@ -554,6 +565,7 @@ export default function RedeApoio() {
       usuarioLogado.tipo_conta,
       imagemUri
     );
+    setModalPub(false);
     // O onSnapshot atualiza automaticamente
   }
 

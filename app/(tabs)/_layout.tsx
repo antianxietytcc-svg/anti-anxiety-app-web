@@ -1,7 +1,9 @@
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { useContext } from "react";
 import { Home, MessageCircle, Users, User } from "lucide-react-native";
 import { View } from "react-native";
 import { COLORS } from "../../src/constants/theme";
+import { LayoutContext } from "../../src/contexts/LayoutContext";
 
 function TabIcon({
   Icon,
@@ -32,6 +34,11 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
+  const { usuarioLogado, estaCarregando } = useContext(LayoutContext);
+  if (estaCarregando) return null;
+  if (!usuarioLogado) return <Redirect href="/" />;
+  if (usuarioLogado.tipo_conta === "psicologo") return <Redirect href="/doutor/sala" />;
+
   return (
     <Tabs
       screenOptions={{

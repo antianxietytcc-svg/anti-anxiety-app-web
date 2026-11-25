@@ -60,7 +60,7 @@ export default function Emergencia() {
   // Carrega contatos de emergência do usuário
   useEffect(() => {
     if (usuarioLogado) {
-      listarContatos(usuarioLogado.email).then(setContatos).catch(() => {});
+      listarContatos(usuarioLogado.uid).then(setContatos).catch(() => {});
     }
   }, [usuarioLogado]);
 

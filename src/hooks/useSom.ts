@@ -24,18 +24,19 @@ export function useSom(nomeSom: NomeSom) {
   // Pre-carrega quando o nome muda
   useEffect(() => {
     let mounted = true;
+    let carregado: Audio.Sound | null = null;
 
     async function carregar() {
-      // descarrega o anterior
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
       try {
         const { sound } = await Audio.Sound.createAsync(SOUND_MAP[nomeSom], {
           shouldPlay: false,
         });
-        if (mounted) soundRef.current = sound;
+        if (!mounted) {
+          await sound.unloadAsync();
+          return;
+        }
+        carregado = sound;
+        soundRef.current = sound;
       } catch {
         // Silencioso — em alguns ambientes (SSR/web sem permissão) pode falhar
       }
@@ -45,7 +46,8 @@ export function useSom(nomeSom: NomeSom) {
 
     return () => {
       mounted = false;
-      soundRef.current?.unloadAsync();
+      soundRef.current = null;
+      carregado?.unloadAsync().catch(() => {});
     };
   }, [nomeSom]);
 

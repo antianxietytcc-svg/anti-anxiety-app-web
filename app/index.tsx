@@ -10,7 +10,6 @@ import {
 import { useRouter } from "expo-router";
 import { Cloud, Heart } from "lucide-react-native";
 import { GradientBackground } from "../src/components/GradientBackground";
-import { ModalMensagem } from "../src/components/ModalMensagem";
 import { COLORS } from "../src/constants/theme";
 import { LayoutContext } from "../src/contexts/LayoutContext";
 
@@ -27,13 +26,11 @@ export default function Login() {
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
 
-  const [modalDemo, setModalDemo] = useState(false);
-  const [textoModal, setTextoModal] = useState("");
 
   // Se já tiver sessão salva, redireciona direto
   useEffect(() => {
     if (!estaCarregando && usuarioLogado) {
-      router.replace("/(tabs)/home");
+      router.replace(usuarioLogado.tipo_conta === "psicologo" ? "/doutor/sala" : "/(tabs)/home");
     }
   }, [estaCarregando, usuarioLogado]);
 
@@ -49,10 +46,7 @@ export default function Login() {
     const resultado = await login(email.trim().toLowerCase(), senha);
     setCarregando(false);
 
-    if (resultado.sucesso) {
-      setTextoModal(`E-mail: ${email.trim().toLowerCase()}\nLogin realizado com sucesso.`);
-      setModalDemo(true);
-    } else {
+    if (!resultado.sucesso) {
       setErro(resultado.erro ?? "Erro ao entrar.");
     }
   }
@@ -198,15 +192,6 @@ export default function Login() {
         </View>
       </KeyboardAvoidingView>
 
-      <ModalMensagem
-        exibir={modalDemo}
-        titulo="Login efetuado!"
-        texto={textoModal}
-        ocultar={() => {
-          setModalDemo(false);
-          router.replace("/(tabs)/home");
-        }}
-      />
     </GradientBackground>
   );
 }

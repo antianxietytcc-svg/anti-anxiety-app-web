@@ -2,9 +2,11 @@
  * Sala do Psicólogo — interface unificada com abas:
  * Pacientes | Feed | Agendamentos | Notas | Perfil
  */
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Platform,
   FlatList,
   Modal,
   Pressable,
@@ -45,20 +47,13 @@ import {
   getPerfil,
   atualizarPerfil,
   contarChatsPsicologo,
-  uploadFotoPerfilStorage,
   type PostFirestore,
   type AgendamentoFirestore,
   type PerfilFirestore,
 } from "../../src/lib/firestore";
+import { ImagemInvalida, prepararImagem } from "../../src/lib/media";
 
-const KEY_DOUTOR_SESSAO = "aa_doutor_sessao";
-
-function lerSessaoDoutor(): { email: string; nome: string; uid: string } | null {
-  try {
-    const raw = localStorage.getItem(KEY_DOUTOR_SESSAO);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
+import { LayoutContext } from "../../src/contexts/LayoutContext";
 
 type AbaDoutor = "pacientes" | "feed" | "agendamentos" | "notas" | "perfil";
 
@@ -159,7 +154,14 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
 
   async function publicar() {
     if (!titulo.trim() || !conteudo.trim()) return;
-    await criarPost(titulo.trim(), conteudo.trim(), sessao.uid, sessao.nome, "psicologo", imagemUri);
+    try {
+      await criarPost(titulo.trim(), conteudo.trim(), sessao.uid, sessao.nome, "psicologo", imagemUri);
+    } catch (erro) {
+      const mensagem = erro instanceof ImagemInvalida ? erro.message : "Não foi possível publicar.";
+      if (Platform.OS === "web") window.alert(mensagem);
+      else Alert.alert("Erro", mensagem);
+      return;
+    }
     setModalPost(false);
     setTitulo("");
     setConteudo("");
@@ -607,12 +609,13 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
     if (!result.canceled && result.assets[0]) {
       setSalvando(true);
       try {
-        const url = await uploadFotoPerfilStorage(sessao.uid, result.assets[0].uri);
+        const url = await prepararImagem(result.assets[0].uri);
         await atualizarPerfil(sessao.uid, { foto_url: url });
         setPerfil((prev) => prev ? { ...prev, foto_url: url } : prev);
-      } catch {
-        await atualizarPerfil(sessao.uid, { foto_url: result.assets[0].uri });
-        setPerfil((prev) => prev ? { ...prev, foto_url: result.assets[0].uri } : prev);
+      } catch (erro) {
+        const mensagem = erro instanceof ImagemInvalida ? erro.message : "Não foi possível salvar a foto de perfil.";
+        if (Platform.OS === "web") window.alert(mensagem);
+        else Alert.alert("Erro", mensagem);
       }
       setSalvando(false);
     }
@@ -722,17 +725,16 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
 // ---------------------------------------------------------------------------
 export default function DoutorSala() {
   const router = useRouter();
-  const sessao = lerSessaoDoutor();
+  const { usuarioLogado, estaCarregando, logout } = useContext(LayoutContext);
+  const sessao = usuarioLogado?.tipo_conta === "psicologo" ? usuarioLogado : null;
   const [aba, setAba] = useState<AbaDoutor>("pacientes");
 
   useEffect(() => {
-    if (!sessao) {
-      router.replace("/doutor");
-    }
-  }, []);
+    if (!estaCarregando && !sessao) router.replace("/doutor");
+  }, [estaCarregando, sessao, router]);
 
-  function sair() {
-    try { localStorage.removeItem(KEY_DOUTOR_SESSAO); } catch {}
+  async function sair() {
+    await logout();
     router.replace("/doutor");
   }
 
