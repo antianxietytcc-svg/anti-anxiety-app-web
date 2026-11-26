@@ -10,11 +10,15 @@ interface Tecnologia {
 }
 
 const tecnologias: Tecnologia[] = [
-  { nome: "React Native", funcao: "Frontend mobile" },
-  { nome: "TypeScript", funcao: "Linguagem" },
-  { nome: "Expo", funcao: "Toolchain / build" },
-  { nome: "NativeWind", funcao: "Estilização" },
-  { nome: "Firebase", funcao: "Banco de dados e autenticação" },
+  { nome: "React Native", funcao: "Componentes e interface do aplicativo móvel" },
+  { nome: "TypeScript", funcao: "Tipagem das telas e dos serviços" },
+  { nome: "Expo", funcao: "Execução no celular e exportação para a Web" },
+  { nome: "Expo Router", funcao: "Navegação entre telas e áreas de acesso" },
+  { nome: "NativeWind e Tailwind CSS", funcao: "Estilos dos componentes e das telas" },
+  { nome: "Firebase Authentication", funcao: "Login, cadastro e recuperação de senha" },
+  { nome: "Cloud Firestore", funcao: "Perfis, contatos, conversas, publicações e agendamentos" },
+  { nome: "Expo ImagePicker e Expo Image", funcao: "Seleção, prévia e exibição de fotos" },
+  { nome: "Vercel", funcao: "Hospedagem da versão Expo exportada para o navegador" },
 ];
 
 export default function Sobre() {

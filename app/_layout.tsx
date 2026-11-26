@@ -1,12 +1,20 @@
 import "../global.css";
+import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { LayoutProvider } from "../src/contexts/LayoutContext";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { firebaseConfigurado } from "../src/lib/firebase";
 
 export default function RootLayout() {
+  useEffect(() => {
+    if (Platform.OS !== "web" || __DEV__ || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/service-worker.js").catch((erro) => {
+      console.warn("Modo offline indisponível:", erro);
+    });
+  }, []);
+
   if (!firebaseConfigurado) {
     return (
       <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 8 }}>
