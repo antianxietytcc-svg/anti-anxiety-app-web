@@ -243,22 +243,53 @@ function AbaAgendamentos({ sessao }: { sessao: { email: string; nome: string; ui
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState<string | null>(null);
 
+  const [erro, setErro] = useState("");
+  const [tentativa, setTentativa] = useState(0);
+  const [erroAtualizacao, setErroAtualizacao] = useState("");
+
   useEffect(() => {
-    if (!sessao.uid) return;
-    const unsub = ouvirAgendamentosPsicologo(sessao.uid, (ags) => {
+    setCarregando(true);
+    setErro("");
+    if (!sessao.uid) {
+      setErro("Entre novamente para carregar sua agenda.");
+      setCarregando(false);
+      return;
+    }
+    return ouvirAgendamentosPsicologo(sessao.uid, (ags) => {
       setAgendamentos(ags);
       setCarregando(false);
+    }, (falha) => {
+      setErro(falha.code === "permission-denied"
+        ? "Sua conta não tem permissão para consultar a agenda."
+        : "Não foi possível carregar a agenda.");
+      setCarregando(false);
     });
-    return () => unsub();
-  }, [sessao.uid]);
+  }, [sessao.uid, tentativa]);
 
   async function atualizar(id: string, status: AgendamentoFirestore["status"]) {
     setAtualizando(id);
-    await atualizarStatusAgendamento(id, status);
-    setAtualizando(null);
+    setErroAtualizacao("");
+    try {
+      await atualizarStatusAgendamento(id, status);
+    } catch {
+      setErroAtualizacao("Não foi possível alterar o agendamento.");
+    } finally {
+      setAtualizando(null);
+    }
   }
 
   if (carregando) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={COLORS.sky400} /></View>;
+
+  if (erro) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 }}>
+        <Text accessibilityRole="alert">{erro}</Text>
+        <Pressable accessibilityRole="button" onPress={() => setTentativa((valor) => valor + 1)}>
+          <Text style={{ color: COLORS.sky700 }}>Tentar novamente</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (agendamentos.length === 0) {
     return (
@@ -274,6 +305,7 @@ function AbaAgendamentos({ sessao }: { sessao: { email: string; nome: string; ui
   return (
     <FlatList
       data={agendamentos}
+      ListHeaderComponent={erroAtualizacao ? <Text accessibilityRole="alert">{erroAtualizacao}</Text> : null}
       keyExtractor={(item) => item.id}
       contentContainerStyle={{ padding: 16, gap: 12 }}
       renderItem={({ item }) => (
@@ -730,12 +762,12 @@ export default function DoutorSala() {
   const [aba, setAba] = useState<AbaDoutor>("pacientes");
 
   useEffect(() => {
-    if (!estaCarregando && !sessao) router.replace("/doutor");
+    if (!estaCarregando && !sessao) router.replace("/");
   }, [estaCarregando, sessao, router]);
 
   async function sair() {
     await logout();
-    router.replace("/doutor");
+    router.replace("/");
   }
 
   if (!sessao) return null;
@@ -772,13 +804,21 @@ export default function DoutorSala() {
         </Pressable>
       </View>
 
+      {/* Conteúdo das abas */}
+      <View style={{ flex: 1 }}>
+        {aba === "pacientes" && <AbaPacientes sessao={sessao} />}
+        {aba === "feed" && <AbaFeed sessao={sessao} />}
+        {aba === "agendamentos" && <AbaAgendamentos sessao={sessao} />}
+        {aba === "notas" && <AbaNotas sessao={sessao} />}
+        {aba === "perfil" && <AbaPerfil sessao={sessao} aoSair={sair} />}
+      </View>
       {/* Tabs */}
       <View
         style={{
           flexDirection: "row",
           backgroundColor: "rgba(255,255,255,0.9)",
-          borderBottomWidth: 1,
-          borderBottomColor: "#e0f2fe",
+          borderTopWidth: 1,
+          borderTopColor: "#e0f2fe",
         }}
       >
         {ABAS.map((item) => (
@@ -789,8 +829,8 @@ export default function DoutorSala() {
               flex: 1,
               alignItems: "center",
               paddingVertical: 12,
-              borderBottomWidth: 2,
-              borderBottomColor: aba === item.key ? COLORS.sky400 : "transparent",
+              borderTopWidth: 2,
+              borderTopColor: aba === item.key ? COLORS.sky400 : "transparent",
             }}
           >
             <item.Icon size={20} color={aba === item.key ? COLORS.sky600 : COLORS.sky300} strokeWidth={aba === item.key ? 2 : 1.5} />
@@ -799,14 +839,6 @@ export default function DoutorSala() {
         ))}
       </View>
 
-      {/* Conteúdo das abas */}
-      <View style={{ flex: 1 }}>
-        {aba === "pacientes" && <AbaPacientes sessao={sessao} />}
-        {aba === "feed" && <AbaFeed sessao={sessao} />}
-        {aba === "agendamentos" && <AbaAgendamentos sessao={sessao} />}
-        {aba === "notas" && <AbaNotas sessao={sessao} />}
-        {aba === "perfil" && <AbaPerfil sessao={sessao} aoSair={sair} />}
-      </View>
     </GradientBackground>
   );
 }

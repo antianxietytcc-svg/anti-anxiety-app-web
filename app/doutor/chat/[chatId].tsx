@@ -216,7 +216,7 @@ export default function DoutorChatPage() {
   useEffect(() => {
     if (estaCarregando) return;
     if (!sessao) {
-      router.replace("/doutor");
+      router.replace("/");
       return;
     }
     if (!chatId) return;
@@ -251,6 +251,7 @@ export default function DoutorChatPage() {
         chatId={chatId!}
         emailAtual={sessao.email}
         nomeAtual={sessao.nome}
+        onVoltar={() => router.dismissTo("/doutor/sala")}
         nomeOutro={nomeOutro}
         headerExtra={
           <View style={{ flexDirection: "row", gap: 4 }}>

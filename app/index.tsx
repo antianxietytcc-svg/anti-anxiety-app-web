@@ -189,6 +189,13 @@ export default function Login() {
               Esqueceu a senha?
             </Text>
           </Pressable>
+          <Pressable
+            onPress={() => router.replace("/doutor")}
+            accessibilityRole="button"
+            style={{ marginTop: 16, alignItems: "center", paddingVertical: 8 }}
+          >
+            <Text style={{ fontSize: 14, color: COLORS.sky700 }}>Entrar como psicólogo</Text>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
 

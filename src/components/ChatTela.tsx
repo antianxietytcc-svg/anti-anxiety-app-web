@@ -137,7 +137,7 @@ export function ChatTela({ chatId, emailAtual, nomeAtual, nomeOutro, uidOutro, o
           borderBottomColor: "#bae6fd",
         }}
       >
-        <Pressable onPress={onVoltar ?? (() => router.back())}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Voltar" hitSlop={10} onPress={onVoltar ?? (() => router.back())}>
           <ChevronLeft size={26} color={COLORS.sky600} strokeWidth={1.5} />
         </Pressable>
         <View style={{ flex: 1 }}>

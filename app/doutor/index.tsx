@@ -262,6 +262,13 @@ export default function DoutorLogin() {
               )}
             </Pressable>
           </View>
+          <Pressable
+            onPress={() => router.replace("/")}
+            accessibilityRole="button"
+            style={{ marginTop: 16, alignItems: "center", paddingVertical: 8 }}
+          >
+            <Text style={{ fontSize: 14, color: COLORS.sky700 }}>Entrar como paciente</Text>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </GradientBackground>

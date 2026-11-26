@@ -31,6 +31,7 @@ import {
   writeBatch,
   serverTimestamp,
   type Unsubscribe,
+  type FirestoreError,
   limit,
 } from "firebase/firestore";
 import {
@@ -714,12 +715,18 @@ export async function atualizarStatusAgendamento(
 
 export function ouvirAgendamentosPsicologo(
   psicoId: string,
-  callback: (ags: AgendamentoFirestore[]) => void
+  callback: (ags: AgendamentoFirestore[]) => void,
+  onError: (erro: FirestoreError) => void
 ): Unsubscribe {
-  const q = query(collection(db, "agendamentos"), where("psicoId", "==", psicoId), orderBy("timestamp", "desc"));
+  const q = query(collection(db, "agendamentos"), where("psicoId", "==", psicoId));
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AgendamentoFirestore, "id">) })));
-  });
+    const agendamentos = snap.docs.map((d) => ({
+      ...(d.data() as Omit<AgendamentoFirestore, "id">),
+      id: d.id,
+    }));
+    agendamentos.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+    callback(agendamentos);
+  }, onError);
 }
 
 export function ouvirAgendamentosPaciente(
