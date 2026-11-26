@@ -20,6 +20,7 @@ import { MessageCircle, Plus, X, Image as ImageIcon, Star } from "lucide-react-n
 import { useFotoEditavel } from "../../src/hooks/useFotoEditavel";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { Avatar } from "../../src/components/Avatar";
+import { useFotosAutores } from "../../src/hooks/useFotosAutores";
 import { COLORS } from "../../src/constants/theme";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
 import {
@@ -538,6 +539,7 @@ function ModalPerfilUsuario({ autorId, aoFechar, uidAtual, nomeAtual, tipoConta 
 export default function RedeApoio() {
   const { usuarioLogado, nomeUsuario } = useContext(LayoutContext);
   const [posts, setPosts] = useState<PostFirestore[]>([]);
+  const fotosAutores = useFotosAutores(posts);
   const [carregando, setCarregando] = useState(true);
   const [modalPub, setModalPub] = useState(false);
   const [postSelecionado, setPostSelecionado] = useState<PostFirestore | null>(null);
@@ -612,6 +614,7 @@ export default function RedeApoio() {
       ) : (
         <FlatList
           data={posts}
+        extraData={fotosAutores}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }}
           ListEmptyComponent={
@@ -638,7 +641,7 @@ export default function RedeApoio() {
                 onPress={() => setAutorSelecionadoId(item.autorId)}
                 style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}
               >
-                <Avatar nome={item.autorNome} size={38} />
+                <Avatar nome={item.autorNome} size={38} fotoUrl={fotosAutores.get(item.autorId)} />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Text style={{ fontSize: 14, color: COLORS.sky800 }}>{item.autorNome}</Text>

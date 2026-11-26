@@ -36,6 +36,7 @@ import { useFotoEditavel } from "../../src/hooks/useFotoEditavel";
 import { Image } from "expo-image";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { Avatar } from "../../src/components/Avatar";
+import { useFotosAutores } from "../../src/hooks/useFotosAutores";
 import { COLORS } from "../../src/constants/theme";
 import {
   garantirChat,
@@ -138,6 +139,7 @@ function AbaPacientes({ sessao }: { sessao: { email: string; nome: string; uid: 
 // ---------------------------------------------------------------------------
 function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: string } }) {
   const [posts, setPosts] = useState<PostFirestore[]>([]);
+  const fotosAutores = useFotosAutores(posts);
   const [carregando, setCarregando] = useState(true);
   const [modalPost, setModalPost] = useState(false);
   const [titulo, setTitulo] = useState("");
@@ -182,6 +184,7 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
       {fotoPost.editor}
       <FlatList
         data={posts}
+        extraData={fotosAutores}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
         ListHeaderComponent={
@@ -196,6 +199,7 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
         renderItem={({ item }) => (
           <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Avatar nome={item.autorNome} size={34} fotoUrl={fotosAutores.get(item.autorId)} />
               {item.autorTipo === "psicologo" && (
                 <View style={{ backgroundColor: "#e0f2fe", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Text style={{ fontSize: 10, color: COLORS.sky600 }}>Psicólogo</Text>

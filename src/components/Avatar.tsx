@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { Text, View } from "react-native";
@@ -19,7 +20,8 @@ export function getIniciais(nome: string): string {
 }
 
 export function Avatar({ nome, size = 48, fotoUrl }: AvatarProps) {
-  if (fotoUrl) {
+  const [fotoComErro, setFotoComErro] = useState<string>();
+  if (fotoUrl && fotoUrl !== fotoComErro) {
     return (
       <View
         style={{
@@ -33,6 +35,7 @@ export function Avatar({ nome, size = 48, fotoUrl }: AvatarProps) {
           source={{ uri: fotoUrl }}
           style={{ width: size, height: size }}
           contentFit="cover"
+          onError={() => setFotoComErro(fotoUrl)}
         />
       </View>
     );

@@ -388,6 +388,13 @@ export async function alterarEmail(
 // ---------------------------------------------------------------------------
 // Perfil / Usuários
 // ---------------------------------------------------------------------------
+export function ouvirFotoPerfil(uid: string, atualizar: (foto?: string) => void): Unsubscribe {
+  return onSnapshot(doc(db, "usuarios", uid), (snap) => {
+    const perfil = snap.data() as PerfilFirestore | undefined;
+    atualizar(perfil?.ocultar_foto ? undefined : perfil?.foto_url);
+  }, () => atualizar(undefined));
+}
+
 export async function getPerfil(uid: string): Promise<PerfilFirestore | null> {
   const snap = await getDoc(doc(db, "usuarios", uid));
   return snap.exists() ? (snap.data() as PerfilFirestore) : null;
