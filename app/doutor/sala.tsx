@@ -32,7 +32,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
+import { useFotoEditavel } from "../../src/hooks/useFotoEditavel";
 import { Image } from "expo-image";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { Avatar } from "../../src/components/Avatar";
@@ -168,15 +168,18 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
     setImagemUri(undefined);
   }
 
+  const fotoPost = useFotoEditavel();
+
   async function escolherImagem() {
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
-    if (!r.canceled) setImagemUri(r.assets[0].uri);
+    const uri = await fotoPost.escolher();
+    if (uri) setImagemUri(uri);
   }
 
   if (carregando) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={COLORS.sky400} /></View>;
 
   return (
     <>
+      {fotoPost.editor}
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -203,7 +206,7 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
             <Text style={{ fontSize: 15, color: COLORS.sky800, marginBottom: 4 }}>{item.titulo}</Text>
             <Text style={{ fontSize: 13, color: COLORS.sky600, lineHeight: 20 }}>{item.conteudo}</Text>
             {item.imagem_url ? (
-              <Image source={{ uri: item.imagem_url }} style={{ width: "100%", height: 160, borderRadius: 10, marginTop: 10 }} contentFit="cover" />
+              <Image source={{ uri: item.imagem_url }} style={{ width: "100%", aspectRatio: 1, borderRadius: 10, marginTop: 10 }} contentFit="contain" />
             ) : null}
           </View>
         )}
@@ -636,12 +639,14 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
     setSalvando(false);
   }
 
+  const fotoPerfil = useFotoEditavel();
+
   async function escolherFoto() {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.7 });
-    if (!result.canceled && result.assets[0]) {
+    const uri = await fotoPerfil.escolher();
+    if (uri) {
       setSalvando(true);
       try {
-        const url = await prepararImagem(result.assets[0].uri);
+        const url = await prepararImagem(uri);
         await atualizarPerfil(sessao.uid, { foto_url: url });
         setPerfil((prev) => prev ? { ...prev, foto_url: url } : prev);
       } catch (erro) {
@@ -657,6 +662,7 @@ function AbaPerfil({ sessao, aoSair }: { sessao: { email: string; nome: string; 
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 80 }}>
+      {fotoPerfil.editor}
       {/* Foto */}
       <View style={{ alignItems: "center", gap: 8 }}>
         <Pressable onPress={escolherFoto}>

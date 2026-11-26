@@ -17,7 +17,14 @@ export function validarImagemBase64(base64: string): string {
   return "data:image/" + tipo + ";base64," + base64;
 }
 
-export async function prepararImagem(uri: string): Promise<string> {
+type AjusteFoto = { zoom: number; x: number; y: number };
+
+export function recorteQuadrado(largura: number, altura: number, ajuste: AjusteFoto) {
+  const lado = Math.min(largura, altura) / ajuste.zoom;
+  return { lado, x: (largura - lado) * ajuste.x, y: (altura - lado) * ajuste.y };
+}
+
+export async function prepararImagem(uri: string, ajuste?: AjusteFoto): Promise<string> {
   if (/^https?:\/\//i.test(uri)) return uri;
   if (Platform.OS !== "web") {
     const dados = uri.match(/^data:image\/[^;]+;base64,(.+)$/i)?.[1];
@@ -29,6 +36,8 @@ export async function prepararImagem(uri: string): Promise<string> {
     return validarImagemBase64(await arquivo.base64());
   }
 
+  if (!ajuste && uri.length <= LIMITE_BASE64 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/=]+$/.test(uri)) return uri;
+
   const imagem = new window.Image();
   imagem.src = uri;
   try {
@@ -36,15 +45,18 @@ export async function prepararImagem(uri: string): Promise<string> {
   } catch {
     throw new ImagemInvalida("Não foi possível abrir a imagem. Selecione um arquivo JPG ou PNG.");
   }
-  const escala = Math.min(1, 640 / Math.max(imagem.naturalWidth, imagem.naturalHeight));
+  const recorte = ajuste ? recorteQuadrado(imagem.naturalWidth, imagem.naturalHeight, ajuste) : null;
+  const largura = recorte?.lado ?? imagem.naturalWidth;
+  const altura = recorte?.lado ?? imagem.naturalHeight;
+  const escala = Math.min(1, 640 / Math.max(largura, altura));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(imagem.naturalWidth * escala));
-  canvas.height = Math.max(1, Math.round(imagem.naturalHeight * escala));
+  canvas.width = Math.max(1, Math.round(largura * escala));
+  canvas.height = Math.max(1, Math.round(altura * escala));
   const contexto = canvas.getContext("2d");
   if (!contexto) throw new ImagemInvalida("Este navegador não conseguiu preparar a imagem.");
   contexto.fillStyle = "#fff";
   contexto.fillRect(0, 0, canvas.width, canvas.height);
-  contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height);
+  contexto.drawImage(imagem, recorte?.x ?? 0, recorte?.y ?? 0, largura, altura, 0, 0, canvas.width, canvas.height);
   for (const qualidade of [0.75, 0.5, 0.3]) {
     const url = canvas.toDataURL("image/jpeg", qualidade);
     if (url.startsWith("data:image/jpeg;base64,") && url.length <= LIMITE_BASE64) return url;

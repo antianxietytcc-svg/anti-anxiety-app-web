@@ -24,7 +24,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
+import { useFotoEditavel } from "../../src/hooks/useFotoEditavel";
 import { Image } from "expo-image";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { COLORS } from "../../src/constants/theme";
@@ -388,18 +388,14 @@ export default function Profile() {
           { label: "Avaliação", value: String(usuarioLogado?.media_avaliacao?.toFixed(1) ?? "–"), Icon: Heart },
         ];
 
+  const { escolher, editor } = useFotoEditavel();
+
   async function escolherFoto() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-      base64: false,
-    });
-    if (!result.canceled && result.assets[0] && usuarioLogado) {
+    const uri = await escolher();
+    if (uri && usuarioLogado) {
       setSalvandoFoto(true);
       try {
-        const url = await prepararImagem(result.assets[0].uri);
+        const url = await prepararImagem(uri);
         await atualizarPerfilLocal({ foto_url: url });
       } catch (erro) {
         const mensagem = erro instanceof ImagemInvalida ? erro.message : "Não foi possível salvar a foto de perfil.";
@@ -424,6 +420,7 @@ export default function Profile() {
 
   return (
     <GradientBackground>
+      {editor}
       {/* Header */}
       <View
         style={{

@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 import { MessageCircle, Plus, X, Image as ImageIcon, Star } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
+import { useFotoEditavel } from "../../src/hooks/useFotoEditavel";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { Avatar } from "../../src/components/Avatar";
 import { COLORS } from "../../src/constants/theme";
@@ -82,15 +82,11 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
     aoFechar();
   }
 
+  const { escolher, editor } = useFotoEditavel();
+
   async function escolherImagem() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setImagemUri(result.assets[0].uri);
-    }
+    const uri = await escolher();
+    if (uri) setImagemUri(uri);
   }
 
   const inputStyle = {
@@ -106,6 +102,7 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
 
   return (
     <Modal visible={visivel} transparent animationType="slide" onRequestClose={handleFechar}>
+      {editor}
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
         <Pressable style={{ position: "absolute", inset: 0 } as any} onPress={handleFechar} />
         <View
@@ -178,7 +175,7 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
                 <Image
                   source={{ uri: imagemUri }}
                   style={{ width: "100%", height: 140, borderRadius: 12 }}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
                 <Pressable
                   onPress={() => setImagemUri(undefined)}
@@ -663,7 +660,7 @@ export default function RedeApoio() {
               {item.imagem_url ? (
                 <Image
                   source={{ uri: item.imagem_url }}
-                  style={{ width: "100%", height: 180, borderRadius: 12, marginTop: 12 }}
+                  style={{ width: "100%", aspectRatio: 1, borderRadius: 12, marginTop: 12 }}
                   resizeMode="cover"
                 />
               ) : null}
