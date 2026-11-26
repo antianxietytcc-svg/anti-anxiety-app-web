@@ -122,6 +122,7 @@ export interface PostFirestore {
   autorNome: string;
   autorTipo: TipoConta;
   imagem_url?: string;
+  imagem_descricao?: string;
   qtd_comentarios: number;
   timestamp: number;
   data_publicacao: string;
@@ -631,7 +632,8 @@ export async function criarPost(
   autorId: string,
   autorNome: string,
   autorTipo: TipoConta,
-  imagem_url?: string
+  imagem_url?: string,
+  imagem_descricao?: string
 ): Promise<PostFirestore> {
   const id = gerarId();
   const imagemFinal = imagem_url ? await prepararImagem(imagem_url) : "";
@@ -642,12 +644,17 @@ export async function criarPost(
     autorNome,
     autorTipo,
     imagem_url: imagemFinal,
+    ...(imagemFinal && imagem_descricao?.trim() ? { imagem_descricao: imagem_descricao.trim().slice(0, 300) } : {}),
     qtd_comentarios: 0,
     timestamp: Date.now(),
     data_publicacao: new Date().toISOString(),
   };
   await setDoc(doc(db, "posts", id), post);
   return { id, ...post };
+}
+
+export async function excluirPost(id: string): Promise<void> {
+  await deleteDoc(doc(db, "posts", id));
 }
 
 export function ouvirComentariosPost(

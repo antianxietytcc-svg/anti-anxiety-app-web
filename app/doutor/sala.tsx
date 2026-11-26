@@ -36,6 +36,8 @@ import { useFotoEditavel } from "../../src/hooks/useFotoEditavel";
 import { Image } from "expo-image";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { Avatar } from "../../src/components/Avatar";
+import { AcoesPublicacao, DescricaoImagem, FiltrosFeed, ImagemPublicacao } from "../../src/components/AcoesPublicacao";
+import { usePreferenciasFeed } from "../../src/hooks/usePreferenciasFeed";
 import { useFotosAutores } from "../../src/hooks/useFotosAutores";
 import { COLORS } from "../../src/constants/theme";
 import {
@@ -139,12 +141,14 @@ function AbaPacientes({ sessao }: { sessao: { email: string; nome: string; uid: 
 // ---------------------------------------------------------------------------
 function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: string } }) {
   const [posts, setPosts] = useState<PostFirestore[]>([]);
-  const fotosAutores = useFotosAutores(posts);
+  const feed = usePreferenciasFeed(sessao.uid, posts);
+  const fotosAutores = useFotosAutores(feed.posts);
   const [carregando, setCarregando] = useState(true);
   const [modalPost, setModalPost] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [conteudo, setConteudo] = useState("");
   const [imagemUri, setImagemUri] = useState<string | undefined>();
+  const [descricao, setDescricao] = useState("");
 
   useEffect(() => {
     const unsub = ouvirPosts((lista) => {
@@ -157,7 +161,7 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
   async function publicar() {
     if (!titulo.trim() || !conteudo.trim()) return;
     try {
-      await criarPost(titulo.trim(), conteudo.trim(), sessao.uid, sessao.nome, "psicologo", imagemUri);
+      await criarPost(titulo.trim(), conteudo.trim(), sessao.uid, sessao.nome, "psicologo", imagemUri, descricao);
     } catch (erro) {
       const mensagem = erro instanceof ImagemInvalida ? erro.message : "Não foi possível publicar.";
       if (Platform.OS === "web") window.alert(mensagem);
@@ -168,6 +172,7 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
     setTitulo("");
     setConteudo("");
     setImagemUri(undefined);
+    setDescricao("");
   }
 
   const fotoPost = useFotoEditavel();
@@ -177,25 +182,28 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
     if (uri) setImagemUri(uri);
   }
 
-  if (carregando) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={COLORS.sky400} /></View>;
+  if (carregando || feed.carregando) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={COLORS.sky400} /></View>;
 
   return (
     <>
       {fotoPost.editor}
       <FlatList
-        data={posts}
+        data={feed.posts}
         extraData={fotosAutores}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
         ListHeaderComponent={
+          <View style={{ gap: 8 }}>
+          <FiltrosFeed feed={feed} />
           <Pressable
             onPress={() => setModalPost(true)}
             style={{ backgroundColor: COLORS.sky400, borderRadius: 16, paddingVertical: 14, alignItems: "center", marginBottom: 4 }}
           >
             <Text style={{ color: "#fff", fontSize: 15 }}>+ Nova publicação</Text>
           </Pressable>
+          </View>
         }
-        ListEmptyComponent={<Text style={{ textAlign: "center", color: COLORS.sky400, paddingTop: 40 }}>Nenhuma publicação ainda.</Text>}
+        ListEmptyComponent={<Text style={{ textAlign: "center", color: COLORS.sky400, paddingTop: 40 }}>{feed.filtro === "recentes" ? "Nenhuma publicação para mostrar." : feed.filtro === "salvos" ? "Nenhuma publicação salva." : "Nenhuma publicação oculta."}</Text>}
         renderItem={({ item }) => (
           <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -209,9 +217,8 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
             </View>
             <Text style={{ fontSize: 15, color: COLORS.sky800, marginBottom: 4 }}>{item.titulo}</Text>
             <Text style={{ fontSize: 13, color: COLORS.sky600, lineHeight: 20 }}>{item.conteudo}</Text>
-            {item.imagem_url ? (
-              <Image source={{ uri: item.imagem_url }} style={{ width: "100%", aspectRatio: 1, borderRadius: 10, marginTop: 10 }} contentFit="contain" />
-            ) : null}
+            {item.imagem_url ? <ImagemPublicacao uri={item.imagem_url} descricao={item.imagem_descricao} /> : null}
+            <AcoesPublicacao post={item} uid={sessao.uid} feed={feed} />
           </View>
         )}
       />
@@ -231,6 +238,7 @@ function AbaFeed({ sessao }: { sessao: { email: string; nome: string; uid: strin
                 <ImageIcon size={18} color={COLORS.sky500} strokeWidth={1.5} />
                 <Text style={{ fontSize: 13, color: COLORS.sky600 }}>{imagemUri ? "Imagem selecionada ✓" : "Adicionar imagem"}</Text>
               </Pressable>
+              {imagemUri ? <DescricaoImagem valor={descricao} alterar={setDescricao} /> : null}
               <Pressable onPress={publicar} style={{ backgroundColor: COLORS.sky400, borderRadius: 12, paddingVertical: 13, alignItems: "center" }}>
                 <Text style={{ color: "#fff", fontSize: 15 }}>Publicar</Text>
               </Pressable>

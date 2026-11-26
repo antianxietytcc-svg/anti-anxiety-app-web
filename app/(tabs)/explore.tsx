@@ -20,6 +20,8 @@ import { MessageCircle, Plus, X, Image as ImageIcon, Star } from "lucide-react-n
 import { useFotoEditavel } from "../../src/hooks/useFotoEditavel";
 import { GradientBackground } from "../../src/components/GradientBackground";
 import { Avatar } from "../../src/components/Avatar";
+import { AcoesPublicacao, DescricaoImagem, FiltrosFeed, ImagemPublicacao } from "../../src/components/AcoesPublicacao";
+import { usePreferenciasFeed } from "../../src/hooks/usePreferenciasFeed";
 import { useFotosAutores } from "../../src/hooks/useFotosAutores";
 import { COLORS } from "../../src/constants/theme";
 import { LayoutContext } from "../../src/contexts/LayoutContext";
@@ -43,13 +45,14 @@ import { ImagemInvalida } from "../../src/lib/media";
 interface ModalPublicacaoProps {
   visivel: boolean;
   aoFechar: () => void;
-  aoPublicar: (titulo: string, conteudo: string, imagemUri?: string) => Promise<void>;
+  aoPublicar: (titulo: string, conteudo: string, imagemUri?: string, descricao?: string) => Promise<void>;
 }
 
 function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoProps) {
   const [titulo, setTitulo] = useState("");
   const [conteudo, setConteudo] = useState("");
   const [imagemUri, setImagemUri] = useState<string | undefined>();
+  const [descricao, setDescricao] = useState("");
   const [erro, setErro] = useState("");
 
   const [publicando, setPublicando] = useState(false);
@@ -62,7 +65,7 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
     if (conteudo.trim().length > 1000) { setErro("Conteúdo muito longo (máx. 1000 caracteres)."); return; }
     setPublicando(true);
     try {
-      await aoPublicar(titulo.trim(), conteudo.trim(), imagemUri);
+      await aoPublicar(titulo.trim(), conteudo.trim(), imagemUri, descricao);
     } catch (erro) {
       setErro(erro instanceof ImagemInvalida ? erro.message : "Não foi possível publicar. Tente novamente.");
       return;
@@ -72,6 +75,7 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
     setTitulo("");
     setConteudo("");
     setImagemUri(undefined);
+    setDescricao("");
     setErro("");
   }
 
@@ -79,6 +83,7 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
     setTitulo("");
     setConteudo("");
     setImagemUri(undefined);
+    setDescricao("");
     setErro("");
     aoFechar();
   }
@@ -179,13 +184,15 @@ function ModalNovaPublicacao({ visivel, aoFechar, aoPublicar }: ModalPublicacaoP
                   resizeMode="contain"
                 />
                 <Pressable
-                  onPress={() => setImagemUri(undefined)}
+                  onPress={() => { setImagemUri(undefined); setDescricao(""); }}
                   style={{ position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 12, padding: 4 }}
                 >
                   <X size={14} color="#fff" />
                 </Pressable>
               </View>
             )}
+
+            {imagemUri ? <DescricaoImagem valor={descricao} alterar={setDescricao} /> : null}
 
             {erro ? <Text style={{ color: "#ef4444", fontSize: 13, textAlign: "center" }}>{erro}</Text> : null}
 
@@ -539,7 +546,8 @@ function ModalPerfilUsuario({ autorId, aoFechar, uidAtual, nomeAtual, tipoConta 
 export default function RedeApoio() {
   const { usuarioLogado, nomeUsuario } = useContext(LayoutContext);
   const [posts, setPosts] = useState<PostFirestore[]>([]);
-  const fotosAutores = useFotosAutores(posts);
+  const feed = usePreferenciasFeed(usuarioLogado?.uid ?? "", posts);
+  const fotosAutores = useFotosAutores(feed.posts);
   const [carregando, setCarregando] = useState(true);
   const [modalPub, setModalPub] = useState(false);
   const [postSelecionado, setPostSelecionado] = useState<PostFirestore | null>(null);
@@ -554,7 +562,7 @@ export default function RedeApoio() {
     return () => unsub();
   }, []);
 
-  async function handlePublicar(titulo: string, conteudo: string, imagemUri?: string) {
+  async function handlePublicar(titulo: string, conteudo: string, imagemUri?: string, descricao?: string) {
     if (!usuarioLogado) return;
     await criarPost(
       titulo,
@@ -562,7 +570,8 @@ export default function RedeApoio() {
       usuarioLogado.uid,
       usuarioLogado.nome,
       usuarioLogado.tipo_conta,
-      imagemUri
+      imagemUri,
+      descricao
     );
     setModalPub(false);
     // O onSnapshot atualiza automaticamente
@@ -607,20 +616,21 @@ export default function RedeApoio() {
         </Pressable>
       </View>
 
-      {carregando ? (
+      {carregando || feed.carregando ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={COLORS.sky400} size="large" />
         </View>
       ) : (
         <FlatList
-          data={posts}
+          data={feed.posts}
+          ListHeaderComponent={<FiltrosFeed feed={feed} />}
         extraData={fotosAutores}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }}
           ListEmptyComponent={
             <View style={{ alignItems: "center", justifyContent: "center", paddingTop: 80 }}>
               <Text style={{ color: COLORS.sky400, fontSize: 15, textAlign: "center", paddingHorizontal: 32 }}>
-                Nenhuma publicação ainda.{"\n"}Seja o primeiro a compartilhar!
+                {feed.filtro === "recentes" ? "Nenhuma publicação para mostrar." : feed.filtro === "salvos" ? "Nenhuma publicação salva." : "Nenhuma publicação oculta."}
               </Text>
             </View>
           }
@@ -660,13 +670,8 @@ export default function RedeApoio() {
               <Text style={{ fontSize: 14, color: COLORS.sky700, lineHeight: 21 }}>{item.conteudo}</Text>
 
               {/* Imagem */}
-              {item.imagem_url ? (
-                <Image
-                  source={{ uri: item.imagem_url }}
-                  style={{ width: "100%", aspectRatio: 1, borderRadius: 12, marginTop: 12 }}
-                  resizeMode="cover"
-                />
-              ) : null}
+              {item.imagem_url ? <ImagemPublicacao uri={item.imagem_url} descricao={item.imagem_descricao} /> : null}
+              <AcoesPublicacao post={item} uid={usuarioLogado?.uid ?? ""} feed={feed} />
 
               {/* Footer com comentários */}
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#e0f2fe" }}>
